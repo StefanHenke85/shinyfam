@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kostenaufstellung – ShinyFam Website</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; color: #1a1a2e; font-size: 14px; }
+
+  .page { max-width: 820px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.10); overflow: hidden; }
+
+  .header { background: linear-gradient(135deg, #7c3aed 0%, #d6467a 50%, #f97316 100%); color: #fff; padding: 36px 40px 28px; }
+  .header h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .header .sub { margin-top: 6px; opacity: 0.88; font-size: 13px; }
+
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 2px solid #f0eeff; }
+  .meta-box { padding: 18px 40px; }
+  .meta-box:first-child { border-right: 1px solid #f0eeff; }
+  .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #8a90a8; margin-bottom: 4px; }
+  .meta-value { font-weight: 700; color: #1a1a2e; font-size: 14px; }
+
+  .content { padding: 32px 40px; }
+
+  h2 { font-size: 15px; font-weight: 700; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.06em; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #f0eeff; }
+  h2:first-child { margin-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  thead th { background: #f8f7ff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a90a8; padding: 8px 12px; text-align: left; }
+  thead th:last-child, thead th:nth-last-child(2) { text-align: right; }
+  tbody tr { border-bottom: 1px solid #f0eeff; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 9px 12px; vertical-align: top; line-height: 1.4; }
+  tbody td:nth-child(2) { text-align: right; color: #4a5070; white-space: nowrap; }
+  tbody td:nth-child(3) { text-align: right; font-weight: 600; color: #1a1a2e; white-space: nowrap; }
+  .td-desc { font-size: 11px; color: #8a90a8; margin-top: 2px; }
+
+  .section-total { display: flex; justify-content: flex-end; margin: 4px 0 20px; }
+  .section-total span { background: #f8f7ff; border-radius: 6px; padding: 5px 14px; font-size: 13px; font-weight: 700; color: #7c3aed; }
+
+  .summary { background: #f8f7ff; border-radius: 10px; padding: 20px 24px; margin-top: 24px; }
+  .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #4a5070; border-bottom: 1px solid #ede8ff; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row.total { margin-top: 8px; padding-top: 12px; font-size: 17px; font-weight: 800; color: #1a1a2e; border-top: 2px solid #d6c6ff; border-bottom: none; }
+  .summary-row.total span:last-child { color: #7c3aed; }
+
+  .freundschaft { background: #fff8f0; border: 2px dashed #f97316; border-radius: 10px; padding: 14px 20px; margin-top: 20px; font-size: 13px; color: #7a5030; line-height: 1.7; text-align: center; }
+  .freundschaft strong { color: #f97316; font-size: 15px; }
+
+  .note { margin-top: 16px; background: #f0fff4; border-left: 4px solid #22c55e; border-radius: 0 8px 8px 0; padding: 14px 18px; font-size: 12px; color: #166534; line-height: 1.6; }
+  .note strong { color: #16a34a; }
+
+  .footer { background: #f8f7ff; padding: 18px 40px; font-size: 11px; color: #8a90a8; border-top: 1px solid #ede8ff; display: flex; justify-content: space-between; }
+
+  @media print {
+    body { background: #fff; }
+    .page { box-shadow: none; margin: 0; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <h1>Kostenaufstellung – ShinyFam Website</h1>
+    <div class="sub">Entwicklung &amp; Design · Henke-Net · Stefan Henke · Rheinstraße 40, 47495 Rheinberg</div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-box">
+      <div class="meta-label">Auftraggeberin</div>
+      <div class="meta-value">Heike Karg · ShinyFam</div>
+      <div class="meta-value" style="font-weight:400;font-size:12px;color:#4a5070;margin-top:2px;">Bönninghardter Straße 72, 46519 Alpen</div>
+    </div>
+    <div class="meta-box">
+      <div class="meta-label">Datum</div>
+      <div class="meta-value">20. März 2026</div>
+      <div class="meta-label" style="margin-top:10px;">Stundensatz (Freundschaftspreis)</div>
+      <div class="meta-value">15,00 € / Stunde</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <h2>Phase 1 – Grundstruktur &amp; Design</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Projektaufbau (Vite, React, TypeScript, Tailwind CSS)
+            <div class="td-desc">Initiale Konfiguration, Ordnerstruktur, Routing</div>
+          </td>
+          <td>2,0</td><td>30,00 €</td>
+        </tr>
+        <tr>
+          <td>Design-System &amp; Theme-Engine
+            <div class="td-desc">CSS-Variablen, Hell-/Dunkelmodus, Farbpalette, Schriften, alle Basis-Klassen</div>
+          </td>
+          <td>3,0</td><td>45,00 €</td>
+        </tr>
+        <tr>
+          <td>Zweisprachigkeit (Deutsch / Englisch)
+            <div class="td-desc">Vollständiges Übersetzungssystem für alle Seiten &amp; Komponenten</div>
+          </td>
+          <td>2,5</td><td>37,50 €</td>
+        </tr>
+        <tr>
+          <td>Navigation &amp; Footer
+            <div class="td-desc">Responsive Navbar, Hamburger-Menü, Footer mit allen Links</div>
+          </td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 1 gesamt: 135,00 €</span></div>
+
+    <h2>Phase 2 – Seiten &amp; Inhalte</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Startseite
+            <div class="td-desc">Hero-Bereich, Nächstes-Event-Banner mit Google Maps &amp; Countdown, YouTube-Videos, Kunstwerke-Kartenslider mit Holo-Effekt &amp; Flip-Animation, Händler-Logos</div>
+          </td>
+          <td>5,0</td><td>75,00 €</td>
+        </tr>
+        <tr>
+          <td>Events-Seite
+            <div class="td-desc">Eventliste aus Datenbank, EventCard mit Karte, Countdown, Händler-Logos, Eintrittspreisanzeige, Filter für vergangene Events</div>
+          </td>
+          <td>3,0</td><td>45,00 €</td>
+        </tr>
+        <tr>
+          <td>Kunstwerke-Seite
+            <div class="td-desc">Galerie aus Datenbank, Lightbox, Tag-Filter, Bestellformular</div>
+          </td>
+          <td>2,5</td><td>37,50 €</td>
+        </tr>
+        <tr>
+          <td>Über uns
+            <div class="td-desc">Familien-Story, zweisprachig, hell-/dunkel-kompatibel</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Kontakt-Seite
+            <div class="td-desc">E-Mail, Instagram, WhatsApp, YouTube mit QR-Codes</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Impressum &amp; Datenschutz
+            <div class="td-desc">Inkl. Kleinunternehmerregelung §19 UStG, YouTube-Hinweis, Hosting-Angaben</div>
+          </td>
+          <td>0,5</td><td>7,50 €</td>
+        </tr>
+        <tr>
+          <td>Cookie-Banner
+            <div class="td-desc">DSGVO-konform, technisch notwendige Cookies, YouTube-Opt-in</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>404-Fehlerseite</td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 2 gesamt: 225,00 €</span></div>
+
+    <h2>Phase 3 – Backend &amp; Datenbank</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Datenbankanbindung (Turso / libSQL)
+            <div class="td-desc">Verbindung, Tabellen-Initialisierung, Migrationen</div>
+          </td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+        <tr>
+          <td>Events-API (CRUD)
+            <div class="td-desc">Erstellen, Bearbeiten, Löschen, Aktiv/Inaktiv-Schalter, Eintrittspreis, Partner, Enddatum, Bild-URL</div>
+          </td>
+          <td>3,0</td><td>45,00 €</td>
+        </tr>
+        <tr>
+          <td>Kunstwerke-API (CRUD)
+            <div class="td-desc">Upload, Verwaltung, Sold-Status</div>
+          </td>
+          <td>2,0</td><td>30,00 €</td>
+        </tr>
+        <tr>
+          <td>Händler-API (CRUD)
+            <div class="td-desc">Anlegen, Bearbeiten, Löschen, Logo-Upload, Verknüpfung mit Events</div>
+          </td>
+          <td>2,0</td><td>30,00 €</td>
+        </tr>
+        <tr>
+          <td>Bild-Upload (clientseitig)
+            <div class="td-desc">Canvas-Resize auf max. 800px, JPEG-Komprimierung, Base64-Speicherung</div>
+          </td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+        <tr>
+          <td>YouTube RSS-Feed Integration
+            <div class="td-desc">Automatischer Abruf der neuesten Videos vom Kanal ohne API-Key</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Kunstwerk-Bestellsystem
+            <div class="td-desc">Formular → Datenbank → Admin-Ansicht</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Google Maps Einbettung
+            <div class="td-desc">Iframe-Vorschau in Events &amp; Startseite, ohne API-Key</div>
+          </td>
+          <td>0,5</td><td>7,50 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 3 gesamt: 187,50 €</span></div>
+
+    <h2>Phase 4 – Admin-Bereich</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Admin-Login mit Token-Authentifizierung</td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Event-Verwaltung
+            <div class="td-desc">Erstellen, Bearbeiten, Löschen, Aktiv/Inaktiv, Eintrittspreis, Händlerauswahl per Klick</div>
+          </td>
+          <td>3,5</td><td>52,50 €</td>
+        </tr>
+        <tr>
+          <td>Kunstwerk-Verwaltung
+            <div class="td-desc">Foto-Upload, Titel, Tags, Sold-Status</div>
+          </td>
+          <td>2,0</td><td>30,00 €</td>
+        </tr>
+        <tr>
+          <td>Händler-Verwaltung
+            <div class="td-desc">Anlegen, Bearbeiten, Logo-Upload, Website, Löschen</div>
+          </td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+        <tr>
+          <td>YouTube-Video-Verwaltung</td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Bestellungs-Übersicht</td>
+          <td>0,5</td><td>7,50 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 4 gesamt: 142,50 €</span></div>
+
+    <h2>Phase 5 – Qualität, Zugänglichkeit &amp; Deployment</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Barrierefreiheit (ARIA, Screenreader, Tastaturnavigation)</td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+        <tr>
+          <td>Responsive Design (Mobil, Tablet, Desktop)</td>
+          <td>1,5</td><td>22,50 €</td>
+        </tr>
+        <tr>
+          <td>Hell-/Dunkelmodus (alle Seiten &amp; Komponenten)</td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Deployment &amp; Konfiguration auf Vercel
+            <div class="td-desc">Einrichtung, Umgebungsvariablen, fortlaufende Deployments</div>
+          </td>
+          <td>1,0</td><td>15,00 €</td>
+        </tr>
+        <tr>
+          <td>Fehlerbehebung &amp; laufende Optimierungen</td>
+          <td>2,0</td><td>30,00 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 5 gesamt: 105,00 €</span></div>
+
+    <div class="summary">
+      <div class="summary-row"><span>Phase 1 – Grundstruktur &amp; Design (9,0 Std.)</span><span>135,00 €</span></div>
+      <div class="summary-row"><span>Phase 2 – Seiten &amp; Inhalte (15,0 Std.)</span><span>225,00 €</span></div>
+      <div class="summary-row"><span>Phase 3 – Backend &amp; Datenbank (12,5 Std.)</span><span>187,50 €</span></div>
+      <div class="summary-row"><span>Phase 4 – Admin-Bereich (9,5 Std.)</span><span>142,50 €</span></div>
+      <div class="summary-row"><span>Phase 5 – Qualität &amp; Deployment (7,0 Std.)</span><span>105,00 €</span></div>
+      <div class="summary-row total"><span>Gesamt (53,0 Std. à 15,00 €)</span><span>795,00 €</span></div>
+    </div>
+
+    <div class="freundschaft">
+      <strong>❤️ Freundschaftspreis</strong><br />
+      Marktüblicher Stundensatz: 70,00 € · Marktüblicher Gesamtpreis: ca. 3.710,00 €<br />
+      Freundschaftsrabatt: <strong>–2.915,00 €</strong> · Du zahlst nur: <strong>795,00 €</strong>
+    </div>
+
+    <div class="note">
+      <strong>Hinweis:</strong> Gemäß §19 UStG (Kleinunternehmerregelung) wird keine Umsatzsteuer berechnet.
+      Laufende Änderungen und Erweiterungen nach Projektabschluss werden separat abgerechnet.
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span>Stefan Henke · Henke-Net · Rheinstraße 40, 47495 Rheinberg</span>
+    <span>Stand: März 2026</span>
+  </div>
+
+</div>
+</body>
+</html>
