@@ -6,10 +6,14 @@ import AdminProducts from './AdminProducts'
 import AdminOrders from './AdminOrders'
 import AdminVideos from './AdminVideos'
 import AdminBrands from './AdminBrands'
-import { CalendarDays, Palette, ShoppingBag, Package, LogOut, Store, Construction } from 'lucide-react'
+import AdminMail from './AdminMail'
+import AdminAnalytics from './AdminAnalytics'
+import AdminContacts from './AdminContacts'
+import AdminSeo from './AdminSeo'
+import { CalendarDays, Palette, ShoppingBag, Package, LogOut, Store, Construction, Mail, BarChart2, Users, Search } from 'lucide-react'
 import YTIcon from '../../components/YTIcon'
 
-type Tab = 'events' | 'artworks' | 'products' | 'orders' | 'videos' | 'brands'
+type Tab = 'events' | 'artworks' | 'products' | 'orders' | 'videos' | 'brands' | 'mail' | 'analytics' | 'contacts' | 'seo'
 
 export default function Admin({ onMaintenanceChange }: { onMaintenanceChange?: (v: boolean) => void }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('shinyfam-admin-token'))
@@ -27,6 +31,7 @@ export default function Admin({ onMaintenanceChange }: { onMaintenanceChange?: (
   async function toggleMaintenance() {
     if (!token) return
     const next = !maintenance
+    if (next && !confirm('Wartungsmodus aktivieren?\n\nDie Seite zeigt dann für alle Besucher eine „Im Aufbau"-Meldung.\n\nJetzt aktivieren?')) return
     setMaintenanceSaving(true)
     try {
       await fetch('/api/settings', {
@@ -55,6 +60,10 @@ export default function Admin({ onMaintenanceChange }: { onMaintenanceChange?: (
     { key: 'orders',   label: 'Bestellungen',  icon: <Package size={16} /> },
     { key: 'videos',   label: 'YouTube',       icon: <YTIcon size={16} /> },
     { key: 'brands',   label: 'Händler',        icon: <Store size={16} /> },
+    { key: 'mail',      label: 'Postfach',    icon: <Mail size={16} /> },
+    { key: 'analytics', label: 'Statistik',   icon: <BarChart2 size={16} /> },
+    { key: 'contacts',  label: 'Kontakte',    icon: <Users size={16} /> },
+    { key: 'seo',       label: 'SEO',         icon: <Search size={16} /> },
   ]
 
   return (
@@ -107,6 +116,10 @@ export default function Admin({ onMaintenanceChange }: { onMaintenanceChange?: (
         {tab === 'orders'   && <AdminOrders token={token} />}
         {tab === 'videos'   && <AdminVideos token={token} />}
         {tab === 'brands'   && <AdminBrands token={token} />}
+        {tab === 'mail'      && <AdminMail token={token} />}
+        {tab === 'analytics' && <AdminAnalytics token={token} />}
+        {tab === 'contacts'  && <AdminContacts token={token} />}
+        {tab === 'seo'       && <AdminSeo token={token} />}
       </div>
     </div>
   )

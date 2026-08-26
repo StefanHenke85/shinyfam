@@ -263,7 +263,6 @@ export default function Artwork() {
                 <option>A5</option>
                 <option>A4</option>
                 <option>A3</option>
-                <option>Digital (PNG)</option>
               </select>
             </div>
             <div>

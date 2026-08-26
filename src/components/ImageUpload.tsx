@@ -5,9 +5,11 @@ interface Props {
   value: string
   onChange: (url: string) => void
   label?: string
+  maxSize?: number
+  quality?: number
 }
 
-export default function ImageUpload({ value, onChange, label = 'Foto' }: Props) {
+export default function ImageUpload({ value, onChange, label = 'Foto', maxSize = 800, quality = 0.75 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -15,15 +17,14 @@ export default function ImageUpload({ value, onChange, label = 'Foto' }: Props) 
     if (!file.type.startsWith('image/')) return
     const img = new window.Image()
     img.onload = () => {
-      const MAX = 800
       let w = img.width, h = img.height
-      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX }
-      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX }
+      if (w > maxSize) { h = Math.round(h * maxSize / w); w = maxSize }
+      if (h > maxSize) { w = Math.round(w * maxSize / h); h = maxSize }
       const canvas = document.createElement('canvas')
       canvas.width = w; canvas.height = h
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0, w, h)
-      onChange(canvas.toDataURL('image/jpeg', 0.75))
+      onChange(canvas.toDataURL('image/jpeg', quality))
     }
     img.src = URL.createObjectURL(file)
   }

@@ -1,14 +1,33 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, CalendarDays, Palette, ChevronRight, ChevronLeft, Users, Zap, MapPin, Clock, ExternalLink } from 'lucide-react'
+import { Sparkles, CalendarDays, Palette, ChevronRight, ChevronLeft, Users, Zap, MapPin, Clock, ExternalLink, Store } from 'lucide-react'
 import EventCard from '../components/EventCard'
 import YTIcon from '../components/YTIcon'
 import CountdownTimer from '../components/CountdownTimer'
 import { useTheme } from '../contexts/ThemeContext'
 import type { TCGEvent } from '../types'
+import EventInquiryForm from '../components/EventInquiryForm'
+import NewsletterSignup from '../components/NewsletterSignup'
 
 interface YTVideo { id: string; title: string }
 interface Artwork { id: string; title: string; image_url: string }
+
+function NextEventInquiry({ event }: { event: TCGEvent }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mt-4 pt-4 border-t border-theme">
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)}
+          className="btn-outline text-sm w-full justify-center flex items-center gap-2">
+          <Store size={14} />
+          Als Händler anfragen
+        </button>
+      ) : (
+        <EventInquiryForm eventName={event.title} eventDate={event.date} onClose={() => setOpen(false)} />
+      )}
+    </div>
+  )
+}
 
 export default function Home() {
   const { t } = useTheme()
@@ -17,6 +36,7 @@ export default function Home() {
   const [artworks, setArtworks] = useState<Artwork[]>([])
   const [artIdx, setArtIdx] = useState(0)
   const [flipping, setFlipping] = useState<number[]>([])
+  const [showEventPopup, setShowEventPopup] = useState(false)
   const artTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -33,6 +53,7 @@ export default function Home() {
       .then(data => setArtworks(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [])
+
 
   const navigate = useCallback((dir: 1 | -1) => {
     if (artTimer.current) clearInterval(artTimer.current)
@@ -62,8 +83,73 @@ export default function Home() {
   const nextEvent = upcoming[0] ?? null
   const moreEvents = upcoming.slice(1, 3)
 
+  useEffect(() => {
+    if (!nextEvent) return
+    const today = new Date().toDateString()
+    if (localStorage.getItem('sf-event-popup-date') === today) return
+    const timer = setTimeout(() => setShowEventPopup(true), 1500)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextEvent?.id])
+
+  function closePopup() {
+    localStorage.setItem('sf-event-popup-date', new Date().toDateString())
+    setShowEventPopup(false)
+  }
+
   return (
     <div>
+      {/* Nächstes-Event Popup */}
+      {showEventPopup && nextEvent && (
+        <div className="event-popup-overlay" onClick={closePopup}>
+          <div className="event-popup" onClick={e => e.stopPropagation()}>
+            <button type="button" className="event-popup-close" onClick={closePopup} aria-label="Schließen">✕</button>
+
+            {/* Header — blauer TCG-Flyer-Style */}
+            <div className="event-popup-header">
+              <img src="/logo.jpg" alt="ShinyFam" className="event-popup-logo" />
+              <div className="event-popup-title-bar">
+                <span>{nextEvent.title}</span>
+              </div>
+              <p className="event-popup-subtitle">Tauschen · Handeln · Sammeln</p>
+            </div>
+
+            {/* Info-Zeilen */}
+            <div className="event-popup-body">
+              <div className="event-popup-info-row date-row">
+                <div className="event-popup-info-icon">📅</div>
+                <span>{new Date(nextEvent.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}</span>
+              </div>
+              <div className="event-popup-info-row time-row">
+                <div className="event-popup-info-icon">
+                  <Clock size={15} />
+                </div>
+                <span>
+                  {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                  {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                  {' '}Uhr
+                </span>
+              </div>
+              <div className="event-popup-info-row loc-row">
+                <div className="event-popup-info-icon">
+                  <MapPin size={15} />
+                </div>
+                <span>{nextEvent.location && <>{nextEvent.location}, </>}{nextEvent.city}</span>
+              </div>
+
+              <div className="event-popup-cta">
+                <Link to="/events" onClick={closePopup} className="event-popup-cta-primary">
+                  Mehr erfahren <ChevronRight size={14} />
+                </Link>
+                <button type="button" onClick={closePopup} className="event-popup-cta-secondary">
+                  Schließen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <section className="hero-section relative min-h-screen flex items-center justify-center overflow-hidden" aria-label="Hero">
         <div className="hero-blob hero-blob-1" aria-hidden="true" />
@@ -80,7 +166,7 @@ export default function Home() {
           </div>
           <div className="tcg-badge mb-4">
             <Zap size={11} aria-hidden="true" />
-            Pokémon, One Piece &amp; andere TCG Community
+            Pokémon TCG Community am Niederrhein
           </div>
           <h1 className="font-display text-5xl md:text-7xl font-black mb-4 section-title">
             <span className="gradient-text">ShinyFam</span>
@@ -123,6 +209,86 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Nächstes Event Banner */}
+      {nextEvent && (
+        <section className="px-4 py-6 max-w-6xl mx-auto">
+          <div className="relative overflow-hidden rounded-2xl next-event-banner-bg">
+            {/* Pokéball Deko */}
+            <div aria-hidden="true" className="absolute -right-10 -top-10 w-48 h-48 rounded-full border-[18px] border-white/20" />
+            <div aria-hidden="true" className="absolute -right-10 -top-10 w-48 h-48 rounded-full border-[3px] border-white/30 scale-75 origin-center" />
+            <div aria-hidden="true" className="absolute right-6 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 border-2 border-white/40 hidden md:flex items-center justify-center text-xl">⚡</div>
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center gap-4 p-5">
+              <div className="text-3xl shrink-0" aria-hidden="true">🏆</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-0.5">Hey! Hier findet ihr uns als nächstes</p>
+                <p className="text-white font-display font-black text-xl md:text-2xl leading-tight truncate">{nextEvent.title}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-white/90 text-sm">
+                  <span className="flex items-center gap-1">
+                    <CalendarDays size={13} aria-hidden="true" />
+                    {new Date(nextEvent.date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' })}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock size={13} aria-hidden="true" />
+                    {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                    {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                    {' '}Uhr
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <MapPin size={13} aria-hidden="true" />
+                    {nextEvent.city}
+                  </span>
+                </div>
+              </div>
+              <Link to="/events"
+                className="shrink-0 bg-white text-[#e3350d] font-bold text-sm px-5 py-2.5 rounded-xl hover:bg-yellow-50 transition-colors flex items-center gap-1.5 shadow-md">
+                Mehr erfahren <ChevronRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="max-w-6xl mx-auto px-4 py-8">
+        <div className="rounded-2xl border border-accent-purple/30 bg-accent-purple/5 p-6">
+          <div className="flex flex-col md:flex-row items-start gap-6">
+            <img src="/TradeTime.jpeg" alt="Trade Time – Zweiter Dienstag im Monat" className="w-full md:w-56 rounded-xl object-cover shadow-lg flex-shrink-0" />
+            <div className="flex-1">
+              <h2 className="font-display text-xl font-black text-primary mb-1">TCG Trade Time</h2>
+              <p className="text-secondary text-sm mb-3">Tauscht, checkt und chattet mit uns! Bringt eure Binder mit und trefft andere Sammler aus der Region.</p>
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center gap-1.5 text-secondary">
+                  <CalendarDays size={14} className="text-accent-purple flex-shrink-0" />
+                  <span><strong className="text-primary">Jeden zweiten Dienstag im Monat</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5 text-secondary">
+                  <Clock size={14} className="text-accent-purple flex-shrink-0" />
+                  <span><strong className="text-primary">17:30 – 20:30 Uhr</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5 text-secondary">
+                  <MapPin size={14} className="text-accent-purple flex-shrink-0" />
+                  <span>Haus der Generationen · Grote Gerd 50 · 47495 Rheinberg</span>
+                </div>
+              </div>
+              <div className="mt-3 inline-flex items-center gap-2 bg-accent-purple/15 text-accent-purple text-xs font-bold px-3 py-1.5 rounded-full">
+                <CalendarDays size={12} />
+                Nächster Termin: {(() => {
+                  const now = new Date()
+                  const d = new Date(now.getFullYear(), now.getMonth(), 1)
+                  let count = 0
+                  while (count < 2) { if (d.getDay() === 2) count++; if (count < 2) d.setDate(d.getDate() + 1) }
+                  if (d <= now) {
+                    d.setMonth(d.getMonth() + 1); d.setDate(1); count = 0
+                    while (count < 2) { if (d.getDay() === 2) count++; if (count < 2) d.setDate(d.getDate() + 1) }
+                  }
+                  return d.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
       {nextEvent && (
         <section className="next-event-section" aria-labelledby="next-event-heading">
           <div className="max-w-6xl mx-auto px-4 py-16">
@@ -138,8 +304,10 @@ export default function Home() {
                   <div className="next-event-placeholder">
                     <div className="next-event-placeholder-inner">
                       <img src="/logo.jpg" alt="ShinyFam" className="next-event-placeholder-logo" />
-                      <p className="text-primary font-display font-black text-xl mt-3">ShinyFam</p>
-                      <p className="text-secondary text-sm mt-1">{nextEvent.title}</p>
+                      <p className="font-display font-black text-2xl mt-4 text-center px-4 next-event-placeholder-title">{nextEvent.title}</p>
+                      <p className="text-sm mt-2 opacity-80 text-center">
+                        {new Date(nextEvent.date).toLocaleDateString('de-DE', {day:'2-digit', month:'long', year:'numeric'})}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -166,7 +334,9 @@ export default function Home() {
                   <div className="next-event-meta-row">
                     <dt><Clock size={15} className="text-accent-purple" aria-label="Uhrzeit" /></dt>
                     <dd className="text-secondary text-sm">
-                      {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} {t('events.timeUnit')}
+                      {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                      {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                      {' '}{t('events.timeUnit')}
                     </dd>
                   </div>
                   <div className="next-event-meta-row">
@@ -232,6 +402,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                <NextEventInquiry event={nextEvent} />
               </div>
             </div>
           </div>
@@ -293,6 +464,21 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <div className="section-divider" />
+
+      {/* Newsletter */}
+      <section className="max-w-6xl mx-auto px-4 py-10">
+        <div className="rounded-2xl border border-accent-purple/30 bg-accent-purple/5 p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-6">
+          <div className="flex-1 min-w-0">
+            <h2 className="font-display text-xl font-black text-primary mb-1">Kein Event verpassen 🃏</h2>
+            <p className="text-secondary text-sm">Trag dich ein und wir schreiben dir wenn neue Börsen, Trade Times oder Neuigkeiten anstehen.</p>
+          </div>
+          <div className="w-full md:w-auto">
+            <NewsletterSignup />
+          </div>
+        </div>
+      </section>
 
       <div className="section-divider" />
 

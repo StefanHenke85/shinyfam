@@ -82,7 +82,7 @@ export default function AdminBrands({ token }: { token: string }) {
               className="input-field"
             />
           </div>
-          <ImageUpload label="Logo (optional)" value={form.logoUrl} onChange={url => setForm({ ...form, logoUrl: url })} />
+          <ImageUpload label="Logo (optional)" value={form.logoUrl} onChange={url => setForm({ ...form, logoUrl: url })} maxSize={300} quality={0.7} />
           <div>
             <label htmlFor="brand-website" className="admin-label">Website (optional)</label>
             <input

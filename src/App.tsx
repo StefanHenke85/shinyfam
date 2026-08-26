@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
 import { CartProvider } from './contexts/CartContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
@@ -16,8 +16,49 @@ import Kontakt from './pages/Kontakt'
 import Impressum from './pages/Impressum'
 import Datenschutz from './pages/Datenschutz'
 import UeberUns from './pages/UeberUns'
+import Haendler from './pages/Haendler'
 import Admin from './pages/admin/Admin'
 import MaintenancePage from './pages/MaintenancePage'
+
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 py-16">
+      <div className="text-8xl mb-6 animate-bounce">🃏</div>
+      <div className="inline-block bg-accent-purple/10 border border-accent-purple/20 text-accent-purple font-bold text-sm px-4 py-1.5 rounded-full mb-4">
+        Fehler 404
+      </div>
+      <h1 className="font-display text-4xl md:text-5xl font-black section-title mb-3">
+        Diese Seite existiert nicht
+      </h1>
+      <p className="text-secondary text-lg mb-2 max-w-md">
+        Vielleicht wurde die Seite verschoben oder der Link ist falsch.
+      </p>
+      <p className="text-muted text-sm mb-8">Kein Problem — hier sind ein paar hilfreiche Links:</p>
+      <div className="flex flex-wrap gap-3 justify-center mb-10">
+        <Link to="/" className="btn-primary">🏠 Startseite</Link>
+        <Link to="/events" className="btn-outline">📅 Events</Link>
+        <Link to="/shop" className="btn-outline">🛒 Shop</Link>
+        <Link to="/artwork" className="btn-outline">🎨 Kunstwerke</Link>
+      </div>
+      <p className="text-xs text-muted">
+        Fragen? <a href="mailto:info@shinyfam.de" className="text-accent-purple hover:underline">info@shinyfam.de</a>
+      </p>
+    </div>
+  )
+}
+
+function PageTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) return
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: location.pathname, referrer: document.referrer || null }),
+    }).catch(() => {})
+  }, [location.pathname])
+  return null
+}
 
 export default function App() {
   const [maintenance, setMaintenance] = useState<boolean | null>(null)
@@ -35,6 +76,7 @@ export default function App() {
     <ThemeProvider>
       <CartProvider>
         <BrowserRouter>
+          <PageTracker />
           <Routes>
             <Route path="/admin/*" element={<Admin onMaintenanceChange={setMaintenance} />} />
             <Route path="*" element={
@@ -50,18 +92,12 @@ export default function App() {
                       <Route path="/shop" element={<Shop />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/checkout/success" element={<CheckoutSuccess />} />
+                      <Route path="/haendler" element={<Haendler />} />
                       <Route path="/ueber-uns" element={<UeberUns />} />
                       <Route path="/kontakt" element={<Kontakt />} />
                       <Route path="/impressum" element={<Impressum />} />
                       <Route path="/datenschutz" element={<Datenschutz />} />
-                      <Route path="*" element={
-                        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                          <p className="text-8xl mb-4">🃏</p>
-                          <h1 className="font-display text-4xl font-black section-title mb-3">404</h1>
-                          <p className="text-secondary text-lg mb-6">Diese Seite gibt es leider nicht.</p>
-                          <a href="/" className="btn-primary">Zur Startseite</a>
-                        </div>
-                      } />
+                      <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>
                   <Footer />

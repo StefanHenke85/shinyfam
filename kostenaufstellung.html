@@ -19,6 +19,11 @@
   .meta-box:first-child { border-right: 1px solid #f0eeff; }
   .meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #8a90a8; margin-bottom: 4px; }
   .meta-value { font-weight: 700; color: #1a1a2e; font-size: 14px; }
+  .meta-address { font-weight: 400; font-size: 12px; color: #4a5070; margin-top: 2px; }
+  .meta-label-spaced { margin-top: 10px; }
+  .summary-row.phase6 { border-top: 2px dashed #d6c6ff; margin-top: 8px; padding-top: 8px; }
+  .summary-row.grandtotal { font-size: 19px; font-weight: 800; color: #1a1a2e; border-top: 2px solid #7c3aed; padding-top: 12px; margin-top: 4px; }
+  .summary-row.grandtotal span:last-child { color: #7c3aed; }
 
   .content { padding: 32px 40px; }
 
@@ -28,6 +33,7 @@
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
   thead th { background: #f8f7ff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a90a8; padding: 8px 12px; text-align: left; }
   thead th:last-child, thead th:nth-last-child(2) { text-align: right; }
+  .market-rate { font-size: 10px; color: #b0b0c8; text-decoration: line-through; margin-left: 4px; }
   tbody tr { border-bottom: 1px solid #f0eeff; }
   tbody tr:last-child { border-bottom: none; }
   tbody td { padding: 9px 12px; vertical-align: top; line-height: 1.4; }
@@ -41,8 +47,12 @@
   .summary { background: #f8f7ff; border-radius: 10px; padding: 20px 24px; margin-top: 24px; }
   .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: #4a5070; border-bottom: 1px solid #ede8ff; }
   .summary-row:last-child { border-bottom: none; }
-  .summary-row.total { margin-top: 8px; padding-top: 12px; font-size: 17px; font-weight: 800; color: #1a1a2e; border-top: 2px solid #d6c6ff; border-bottom: none; }
-  .summary-row.total span:last-child { color: #7c3aed; }
+  .summary-row.total { margin-top: 8px; padding-top: 12px; font-size: 15px; font-weight: 700; color: #8a90a8; border-top: 2px solid #d6c6ff; border-bottom: none; text-decoration: line-through; }
+  .summary-row.total span:last-child { color: #8a90a8; }
+  .summary-row.discount span:last-child { color: #f97316; font-weight: 700; }
+  .summary-row.paid { font-size: 18px; font-weight: 800; color: #1a1a2e; border-top: 2px solid #d6c6ff; padding-top: 10px; margin-top: 4px; }
+  .summary-row.paid span:last-child { color: #7c3aed; }
+  .meta-paid { font-weight: 700; color: #f97316; font-size: 14px; }
 
   .freundschaft { background: #fff8f0; border: 2px dashed #f97316; border-radius: 10px; padding: 14px 20px; margin-top: 20px; font-size: 13px; color: #7a5030; line-height: 1.7; text-align: center; }
   .freundschaft strong { color: #f97316; font-size: 15px; }
@@ -70,13 +80,13 @@
     <div class="meta-box">
       <div class="meta-label">Auftraggeberin</div>
       <div class="meta-value">Heike Karg · ShinyFam</div>
-      <div class="meta-value" style="font-weight:400;font-size:12px;color:#4a5070;margin-top:2px;">Bönninghardter Straße 72, 46519 Alpen</div>
+      <div class="meta-address">Bönninghardter Straße 72, 46519 Alpen</div>
     </div>
     <div class="meta-box">
       <div class="meta-label">Datum</div>
-      <div class="meta-value">20. März 2026</div>
-      <div class="meta-label" style="margin-top:10px;">Stundensatz (Freundschaftspreis)</div>
-      <div class="meta-value">15,00 € / Stunde</div>
+      <div class="meta-value">11. April 2026</div>
+      <div class="meta-label meta-label-spaced">Tatsächlich bezahlt</div>
+      <div class="meta-value meta-paid">150,00 € (Freundschaftspreis)</div>
     </div>
   </div>
 
@@ -85,236 +95,295 @@
     <h2>Phase 1 – Grundstruktur &amp; Design</h2>
     <table>
       <thead>
-        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Marktwert</th></tr>
       </thead>
       <tbody>
         <tr>
           <td>Projektaufbau (Vite, React, TypeScript, Tailwind CSS)
             <div class="td-desc">Initiale Konfiguration, Ordnerstruktur, Routing</div>
           </td>
-          <td>2,0</td><td>30,00 €</td>
+          <td>2,0</td><td>140,00 €</td>
         </tr>
         <tr>
           <td>Design-System &amp; Theme-Engine
             <div class="td-desc">CSS-Variablen, Hell-/Dunkelmodus, Farbpalette, Schriften, alle Basis-Klassen</div>
           </td>
-          <td>3,0</td><td>45,00 €</td>
+          <td>3,0</td><td>210,00 €</td>
         </tr>
         <tr>
           <td>Zweisprachigkeit (Deutsch / Englisch)
             <div class="td-desc">Vollständiges Übersetzungssystem für alle Seiten &amp; Komponenten</div>
           </td>
-          <td>2,5</td><td>37,50 €</td>
+          <td>2,5</td><td>175,00 €</td>
         </tr>
         <tr>
           <td>Navigation &amp; Footer
             <div class="td-desc">Responsive Navbar, Hamburger-Menü, Footer mit allen Links</div>
           </td>
-          <td>1,5</td><td>22,50 €</td>
+          <td>1,5</td><td>105,00 €</td>
         </tr>
       </tbody>
     </table>
-    <div class="section-total"><span>Phase 1 gesamt: 135,00 €</span></div>
+    <div class="section-total"><span>Phase 1 gesamt: 630,00 €</span></div>
 
     <h2>Phase 2 – Seiten &amp; Inhalte</h2>
     <table>
       <thead>
-        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Marktwert</th></tr>
       </thead>
       <tbody>
         <tr>
           <td>Startseite
             <div class="td-desc">Hero-Bereich, Nächstes-Event-Banner mit Google Maps &amp; Countdown, YouTube-Videos, Kunstwerke-Kartenslider mit Holo-Effekt &amp; Flip-Animation, Händler-Logos</div>
           </td>
-          <td>5,0</td><td>75,00 €</td>
+          <td>5,0</td><td>350,00 €</td>
         </tr>
         <tr>
           <td>Events-Seite
             <div class="td-desc">Eventliste aus Datenbank, EventCard mit Karte, Countdown, Händler-Logos, Eintrittspreisanzeige, Filter für vergangene Events</div>
           </td>
-          <td>3,0</td><td>45,00 €</td>
+          <td>3,0</td><td>210,00 €</td>
         </tr>
         <tr>
           <td>Kunstwerke-Seite
             <div class="td-desc">Galerie aus Datenbank, Lightbox, Tag-Filter, Bestellformular</div>
           </td>
-          <td>2,5</td><td>37,50 €</td>
+          <td>2,5</td><td>175,00 €</td>
         </tr>
         <tr>
           <td>Über uns
             <div class="td-desc">Familien-Story, zweisprachig, hell-/dunkel-kompatibel</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Kontakt-Seite
             <div class="td-desc">E-Mail, Instagram, WhatsApp, YouTube mit QR-Codes</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Impressum &amp; Datenschutz
             <div class="td-desc">Inkl. Kleinunternehmerregelung §19 UStG, YouTube-Hinweis, Hosting-Angaben</div>
           </td>
-          <td>0,5</td><td>7,50 €</td>
+          <td>0,5</td><td>35,00 €</td>
         </tr>
         <tr>
           <td>Cookie-Banner
             <div class="td-desc">DSGVO-konform, technisch notwendige Cookies, YouTube-Opt-in</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>404-Fehlerseite</td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
       </tbody>
     </table>
-    <div class="section-total"><span>Phase 2 gesamt: 225,00 €</span></div>
+    <div class="section-total"><span>Phase 2 gesamt: 1.050,00 €</span></div>
 
     <h2>Phase 3 – Backend &amp; Datenbank</h2>
     <table>
       <thead>
-        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Marktwert</th></tr>
       </thead>
       <tbody>
         <tr>
           <td>Datenbankanbindung (Turso / libSQL)
             <div class="td-desc">Verbindung, Tabellen-Initialisierung, Migrationen</div>
           </td>
-          <td>1,5</td><td>22,50 €</td>
+          <td>1,5</td><td>105,00 €</td>
         </tr>
         <tr>
           <td>Events-API (CRUD)
             <div class="td-desc">Erstellen, Bearbeiten, Löschen, Aktiv/Inaktiv-Schalter, Eintrittspreis, Partner, Enddatum, Bild-URL</div>
           </td>
-          <td>3,0</td><td>45,00 €</td>
+          <td>3,0</td><td>210,00 €</td>
         </tr>
         <tr>
           <td>Kunstwerke-API (CRUD)
             <div class="td-desc">Upload, Verwaltung, Sold-Status</div>
           </td>
-          <td>2,0</td><td>30,00 €</td>
+          <td>2,0</td><td>140,00 €</td>
         </tr>
         <tr>
           <td>Händler-API (CRUD)
             <div class="td-desc">Anlegen, Bearbeiten, Löschen, Logo-Upload, Verknüpfung mit Events</div>
           </td>
-          <td>2,0</td><td>30,00 €</td>
+          <td>2,0</td><td>140,00 €</td>
         </tr>
         <tr>
           <td>Bild-Upload (clientseitig)
             <div class="td-desc">Canvas-Resize auf max. 800px, JPEG-Komprimierung, Base64-Speicherung</div>
           </td>
-          <td>1,5</td><td>22,50 €</td>
+          <td>1,5</td><td>105,00 €</td>
         </tr>
         <tr>
           <td>YouTube RSS-Feed Integration
             <div class="td-desc">Automatischer Abruf der neuesten Videos vom Kanal ohne API-Key</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Kunstwerk-Bestellsystem
             <div class="td-desc">Formular → Datenbank → Admin-Ansicht</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Google Maps Einbettung
             <div class="td-desc">Iframe-Vorschau in Events &amp; Startseite, ohne API-Key</div>
           </td>
-          <td>0,5</td><td>7,50 €</td>
+          <td>0,5</td><td>35,00 €</td>
         </tr>
       </tbody>
     </table>
-    <div class="section-total"><span>Phase 3 gesamt: 187,50 €</span></div>
+    <div class="section-total"><span>Phase 3 gesamt: 875,00 €</span></div>
 
     <h2>Phase 4 – Admin-Bereich</h2>
     <table>
       <thead>
-        <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Marktwert</th></tr>
       </thead>
       <tbody>
         <tr>
           <td>Admin-Login mit Token-Authentifizierung</td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Event-Verwaltung
             <div class="td-desc">Erstellen, Bearbeiten, Löschen, Aktiv/Inaktiv, Eintrittspreis, Händlerauswahl per Klick</div>
           </td>
-          <td>3,5</td><td>52,50 €</td>
+          <td>3,5</td><td>245,00 €</td>
         </tr>
         <tr>
           <td>Kunstwerk-Verwaltung
             <div class="td-desc">Foto-Upload, Titel, Tags, Sold-Status</div>
           </td>
-          <td>2,0</td><td>30,00 €</td>
+          <td>2,0</td><td>140,00 €</td>
         </tr>
         <tr>
           <td>Händler-Verwaltung
             <div class="td-desc">Anlegen, Bearbeiten, Logo-Upload, Website, Löschen</div>
           </td>
-          <td>1,5</td><td>22,50 €</td>
+          <td>1,5</td><td>105,00 €</td>
         </tr>
         <tr>
           <td>YouTube-Video-Verwaltung</td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,0</td><td>70,00 €</td>
         </tr>
         <tr>
           <td>Bestellungs-Übersicht</td>
-          <td>0,5</td><td>7,50 €</td>
+          <td>0,5</td><td>35,00 €</td>
         </tr>
       </tbody>
     </table>
-    <div class="section-total"><span>Phase 4 gesamt: 142,50 €</span></div>
+    <div class="section-total"><span>Phase 4 gesamt: 665,00 €</span></div>
 
     <h2>Phase 5 – Qualität, Zugänglichkeit &amp; Deployment</h2>
+    <table>
+      <thead>
+        <tr><th>Tätigkeit</th><th>Stunden</th><th>Marktwert</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Barrierefreiheit (ARIA, Screenreader, Tastaturnavigation)</td>
+          <td>1,5</td><td>105,00 €</td>
+        </tr>
+        <tr>
+          <td>Responsive Design (Mobil, Tablet, Desktop)</td>
+          <td>1,5</td><td>105,00 €</td>
+        </tr>
+        <tr>
+          <td>Hell-/Dunkelmodus (alle Seiten &amp; Komponenten)</td>
+          <td>1,0</td><td>70,00 €</td>
+        </tr>
+        <tr>
+          <td>Deployment &amp; Konfiguration auf Vercel
+            <div class="td-desc">Einrichtung, Umgebungsvariablen, fortlaufende Deployments</div>
+          </td>
+          <td>1,0</td><td>70,00 €</td>
+        </tr>
+        <tr>
+          <td>Fehlerbehebung &amp; laufende Optimierungen</td>
+          <td>2,0</td><td>140,00 €</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="section-total"><span>Phase 5 gesamt: 490,00 €</span></div>
+
+    <h2>Phase 6 – SEO, Erweiterungen &amp; Optimierungen</h2>
     <table>
       <thead>
         <tr><th>Tätigkeit</th><th>Stunden</th><th>Betrag</th></tr>
       </thead>
       <tbody>
         <tr>
-          <td>Barrierefreiheit (ARIA, Screenreader, Tastaturnavigation)</td>
-          <td>1,5</td><td>22,50 €</td>
-        </tr>
-        <tr>
-          <td>Responsive Design (Mobil, Tablet, Desktop)</td>
-          <td>1,5</td><td>22,50 €</td>
-        </tr>
-        <tr>
-          <td>Hell-/Dunkelmodus (alle Seiten &amp; Komponenten)</td>
-          <td>1,0</td><td>15,00 €</td>
-        </tr>
-        <tr>
-          <td>Deployment &amp; Konfiguration auf Vercel
-            <div class="td-desc">Einrichtung, Umgebungsvariablen, fortlaufende Deployments</div>
+          <td>SEO-Optimierung (Meta-Tags, Keywords, Schema.org)
+            <div class="td-desc">LocalBusiness + FAQPage Schema, erweiterte Keywords: TCG Dülmen, TCG Wesel, Grav Island CardCon, TCG Börse NRW</div>
           </td>
-          <td>1,0</td><td>15,00 €</td>
+          <td>1,5</td><td>105,00 €</td>
         </tr>
         <tr>
-          <td>Fehlerbehebung &amp; laufende Optimierungen</td>
-          <td>2,0</td><td>30,00 €</td>
+          <td>AI-Sichtbarkeit (llms.txt, FAQ-Schema)
+            <div class="td-desc">llms.txt für ChatGPT/Gemini/Perplexity, strukturierte Daten für KI-Suchmaschinen</div>
+          </td>
+          <td>0,5</td><td>35,00 €</td>
+        </tr>
+        <tr>
+          <td>Sitemap &amp; robots.txt
+            <div class="td-desc">sitemap.xml mit allen Seiten, robots.txt, Einreichung in Google Search Console</div>
+          </td>
+          <td>0,5</td><td>35,00 €</td>
+        </tr>
+        <tr>
+          <td>Event-Popup (Pokémon-Design)
+            <div class="td-desc">Animiertes Next-Event-Popup im TCG-Flyer-Design, einmal täglich via localStorage</div>
+          </td>
+          <td>1,5</td><td>105,00 €</td>
+        </tr>
+        <tr>
+          <td>Mehrtägige Event-Zeitpläne
+            <div class="td-desc">Tagesweise Start-/Endzeiten pro Event (z.B. Sa 10–17 Uhr, So 11–17:30 Uhr)</div>
+          </td>
+          <td>1,0</td><td>70,00 €</td>
+        </tr>
+        <tr>
+          <td>Event-Promotion-Tool
+            <div class="td-desc">Vorformulierte Texte für Instagram, Facebook, WhatsApp, Discord &amp; Google My Business mit Kopier-Funktion</div>
+          </td>
+          <td>1,0</td><td>70,00 €</td>
+        </tr>
+        <tr>
+          <td>Admin-Erweiterungen
+            <div class="td-desc">Kunstwerk-Anfragen im Admin, Anfragen löschen/erledigt markieren, Händler-Notizen, SEO-Analyse-Tool, Wartungsmodus-Sicherheitsabfrage</div>
+          </td>
+          <td>2,0</td><td>140,00 €</td>
         </tr>
       </tbody>
     </table>
-    <div class="section-total"><span>Phase 5 gesamt: 105,00 €</span></div>
+    <div class="section-total"><span>Phase 6 gesamt: 560,00 €</span></div>
 
     <div class="summary">
-      <div class="summary-row"><span>Phase 1 – Grundstruktur &amp; Design (9,0 Std.)</span><span>135,00 €</span></div>
-      <div class="summary-row"><span>Phase 2 – Seiten &amp; Inhalte (15,0 Std.)</span><span>225,00 €</span></div>
-      <div class="summary-row"><span>Phase 3 – Backend &amp; Datenbank (12,5 Std.)</span><span>187,50 €</span></div>
-      <div class="summary-row"><span>Phase 4 – Admin-Bereich (9,5 Std.)</span><span>142,50 €</span></div>
-      <div class="summary-row"><span>Phase 5 – Qualität &amp; Deployment (7,0 Std.)</span><span>105,00 €</span></div>
-      <div class="summary-row total"><span>Gesamt (53,0 Std. à 15,00 €)</span><span>795,00 €</span></div>
+      <div class="summary-row"><span>Phase 1 – Grundstruktur &amp; Design (9,0 Std.)</span><span>630,00 €</span></div>
+      <div class="summary-row"><span>Phase 2 – Seiten &amp; Inhalte (15,0 Std.)</span><span>1.050,00 €</span></div>
+      <div class="summary-row"><span>Phase 3 – Backend &amp; Datenbank (12,5 Std.)</span><span>875,00 €</span></div>
+      <div class="summary-row"><span>Phase 4 – Admin-Bereich (9,5 Std.)</span><span>665,00 €</span></div>
+      <div class="summary-row"><span>Phase 5 – Qualität &amp; Deployment (7,0 Std.)</span><span>490,00 €</span></div>
+      <div class="summary-row total"><span>Marktwert Phase 1–5 (53,0 Std. à 70,00 €)</span><span>3.710,00 €</span></div>
+      <div class="summary-row discount"><span>Freundschaftsrabatt Phase 1–5 (ca. 96,5 %)</span><span>–3.560,00 €</span></div>
+      <div class="summary-row paid"><span>Bezahlt Phase 1–5</span><span>150,00 €</span></div>
+      <div class="summary-row phase6"><span>Phase 6 – SEO &amp; Erweiterungen (8,0 Std.)</span><span>560,00 €</span></div>
+      <div class="summary-row discount"><span>Freundschaftsrabatt Phase 6 (ca. 96,5 %)</span><span>–540,40 €</span></div>
+      <div class="summary-row paid"><span>Bezahlt Phase 6</span><span>19,60 €</span></div>
+      <div class="summary-row grandtotal"><span>Gesamtbetrag bezahlt</span><span>169,60 €</span></div>
     </div>
 
     <div class="freundschaft">
       <strong>❤️ Freundschaftspreis</strong><br />
-      Marktüblicher Stundensatz: 70,00 € · Marktüblicher Gesamtpreis: ca. 3.710,00 €<br />
-      Freundschaftsrabatt: <strong>–2.915,00 €</strong> · Du zahlst nur: <strong>795,00 €</strong>
+      Marktüblicher Stundensatz: 70,00 € · Marktüblicher Gesamtpreis: ca. 4.270,00 €<br />
+      Phase 1–5 bezahlt: <strong>150,00 €</strong> · Phase 6 bezahlt: <strong>19,60 €</strong> · Gesamt: <strong>169,60 €</strong><br />
+      Das entspricht ca. <strong>3,5 % des Marktwertes</strong>
     </div>
 
     <div class="note">
@@ -326,7 +395,7 @@
 
   <div class="footer">
     <span>Stefan Henke · Henke-Net · Rheinstraße 40, 47495 Rheinberg</span>
-    <span>Stand: März 2026</span>
+    <span>Stand: April 2026</span>
   </div>
 
 </div>

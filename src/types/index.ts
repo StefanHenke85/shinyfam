@@ -4,6 +4,12 @@ export interface EventPartner {
   website?: string
 }
 
+export interface EventScheduleDay {
+  label: string   // z.B. "Samstag" oder "Tag 1"
+  start: string   // "10:00"
+  end: string     // "17:00"
+}
+
 export interface TCGEvent {
   id: string
   title: string
@@ -20,6 +26,8 @@ export interface TCGEvent {
   partners?: EventPartner[]
   isActive?: boolean
   entryFee?: number | null
+  schedule?: EventScheduleDay[]
+  maxVendors?: number | null
 }
 
 export interface ArtworkPiece {

@@ -1,15 +1,18 @@
-import { MapPin, Calendar, Tag, Ticket, Clock, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { MapPin, Calendar, Tag, Ticket, Clock, ExternalLink, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { de, enUS } from 'date-fns/locale'
 import type { TCGEvent } from '../types'
 import CountdownTimer from './CountdownTimer'
 import YouTubeEmbed from './YouTubeEmbed'
+import EventInquiryForm from './EventInquiryForm'
 import { useTheme } from '../contexts/ThemeContext'
 
 interface Props { event: TCGEvent }
 
 export default function EventCard({ event }: Props) {
   const { lang, t } = useTheme()
+  const [showInquiry, setShowInquiry] = useState(false)
   const eventDate = new Date(event.date)
   const endDate = event.endDate ? new Date(event.endDate) : null
   const isPast = eventDate < new Date()
@@ -47,6 +50,17 @@ export default function EventCard({ event }: Props) {
               {' '}{t('events.timeUnit')}
             </dd>
           </div>
+          {event.schedule && event.schedule.length > 0 && (
+            <div className="flex items-start gap-2 text-secondary text-sm">
+              <dt className="sr-only">Zeitplan</dt>
+              <Clock size={13} className="text-accent-purple shrink-0 mt-0.5" aria-hidden="true" />
+              <dd className="flex flex-col gap-0.5">
+                {event.schedule.map((day, i) => (
+                  <span key={i}><span className="font-medium text-primary">{day.label}:</span> {day.start} – {day.end} Uhr</span>
+                ))}
+              </dd>
+            </div>
+          )}
           <div className="flex items-start gap-2 text-secondary text-sm">
             <dt className="sr-only">{t('events.location.label')}</dt>
             <MapPin size={13} className="text-accent-pink shrink-0 mt-0.5" aria-hidden="true" />
@@ -128,6 +142,38 @@ export default function EventCard({ event }: Props) {
           </div>
         ) : (
           <p className="text-xs text-muted text-center py-1">{t('events.free')}</p>
+        )}
+
+        {!isPast && (
+          <>
+            {event.maxVendors != null && (
+              <div className="mt-3 mb-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted flex items-center gap-1"><Users size={11} aria-hidden="true" /> Händlerplätze</span>
+                  <span className="font-semibold text-primary">{event.maxVendors} verfügbar</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-bg-raised overflow-hidden">
+                  <div className="h-full rounded-full bg-accent-purple transition-all w-0" />
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowInquiry(v => !v)}
+              className="btn-outline text-sm w-full justify-center mt-2 flex items-center gap-2"
+            >
+              <Users size={13} aria-hidden="true" />
+              Als Händler anfragen
+            </button>
+            {showInquiry && (
+              <EventInquiryForm
+                eventName={event.title}
+                eventDate={event.date}
+                eventEndDate={event.endDate}
+                onClose={() => setShowInquiry(false)}
+              />
+            )}
+          </>
         )}
       </div>
     </article>

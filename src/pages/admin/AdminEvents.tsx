@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Calendar, Pencil, X } from 'lucide-react'
-import type { TCGEvent, EventPartner } from '../../types'
+import { Plus, Trash2, Calendar, Pencil, X, Copy, Check, Megaphone } from 'lucide-react'
+import type { TCGEvent, EventPartner, EventScheduleDay } from '../../types'
 import ImageUpload from '../../components/ImageUpload'
 
 interface Brand { id: string; name: string; logo_url: string | null; website: string | null }
@@ -10,12 +10,13 @@ interface FormState {
   address: string; city: string; description: string; tags: string[]
   youtubeVideoId: string; ticketUrl: string; imageUrl: string
   partners: EventPartner[]; isActive: boolean; entryFee: string
+  schedule: EventScheduleDay[]; maxVendors: string
 }
 
 const EMPTY: FormState = {
   title: '', date: '', endDate: '', location: '', address: '', city: '',
   description: '', tags: [], youtubeVideoId: '', ticketUrl: '', imageUrl: '', partners: [],
-  isActive: true, entryFee: '',
+  isActive: true, entryFee: '', schedule: [], maxVendors: '',
 }
 
 export default function AdminEvents({ token }: { token: string }) {
@@ -27,12 +28,122 @@ export default function AdminEvents({ token }: { token: string }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
+  const [promoEvent, setPromoEvent] = useState<TCGEvent | null>(null)
+  const [copiedPlatform, setCopiedPlatform] = useState<string | null>(null)
+
+  function buildTexts(ev: TCGEvent) {
+    const date = new Date(ev.date)
+    const dateStr = date.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+    const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    const endStr = ev.endDate ? ` – ${new Date(ev.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : ''
+    const fee = ev.entryFee ? `Eintritt: ${ev.entryFee.toFixed(2)} €` : 'Eintritt frei!'
+    const hashtags = `#ShinyFam #TCG #PokémonTCG #Pokémon #NRW #Niederrhein #Sammelkarten #TCGBörse #${ev.city.replace(/\s+/g, '')}`
+
+    return {
+      instagram: `🃏✨ ${ev.title} ✨🃏
+
+Hey ShinyFam! 👋 Wir sind wieder dabei!
+
+📅 ${dateStr}
+🕙 ${timeStr}${endStr} Uhr
+📍 ${ev.location}, ${ev.city}
+
+${ev.description}
+
+🎟️ ${fee}
+🔗 Alle Infos & als Händler bewerben: Link in Bio!
+
+${hashtags} #TCGCommunity #Trading`,
+
+      facebook: `🎉 ${ev.title}
+
+Hey Leute! Wir freuen uns euch wieder auf einer TCG Börse zu sehen! 🃏
+
+📅 ${dateStr}
+🕙 ${timeStr}${endStr} Uhr
+📍 ${ev.location}, ${ev.address ? ev.address + ', ' : ''}${ev.city}
+
+${ev.description}
+
+🎟️ ${fee}
+
+👉 Alle Infos & Händleranfragen direkt auf unserer Website:
+https://shinyfam.de/events
+
+Teilt den Post und bringt Freunde mit! 💪
+${hashtags}`,
+
+      discord: `📢 **${ev.title}**
+
+Hey @everyone! Neues Event in Sicht! 🃏
+
+📅 **${dateStr}**
+🕙 **${timeStr}${endStr} Uhr**
+📍 **${ev.location}, ${ev.city}**
+
+${ev.description}
+
+🎟️ ${fee}
+
+🔗 **Alle Infos & als Händler anmelden:** https://shinyfam.de/events`,
+
+      whatsapp: `🃏 *${ev.title}*
+
+📅 ${dateStr}
+🕙 ${timeStr}${endStr} Uhr
+📍 ${ev.location}, ${ev.city}
+
+${ev.description}
+
+🎟️ ${fee}
+
+👉 Alle Infos: https://shinyfam.de/events`,
+
+      gmb: buildGmbPost(ev),
+    }
+  }
+
+  async function copyPlatform(text: string, platform: string) {
+    await navigator.clipboard.writeText(text)
+    setCopiedPlatform(platform)
+    setTimeout(() => setCopiedPlatform(null), 2000)
+  }
+
+  function buildGmbPost(ev: TCGEvent): string {
+    const date = new Date(ev.date)
+    const dateStr = date.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+    const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    const endStr = ev.endDate ? ` – ${new Date(ev.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : ''
+    const fee = ev.entryFee ? `🎟️ Eintritt: ${ev.entryFee.toFixed(2)} €\n` : '🎟️ Eintritt frei!\n'
+    const tags = (ev.tags || []).map(t => `#${t.replace(/\s+/g, '')}`).join(' ')
+
+    return `🃏 ${ev.title}
+
+📅 ${dateStr}
+🕙 ${timeStr}${endStr} Uhr
+📍 ${ev.location}, ${ev.city}
+
+${ev.description}
+
+${fee}
+👉 Alle Infos & Händleranfragen: https://shinyfam.de/events
+
+${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
+  }
+
+  async function copyGmbPost(ev: TCGEvent) {
+    const text = buildGmbPost(ev)
+    await navigator.clipboard.writeText(text)
+    setCopied(ev.id)
+    setTimeout(() => setCopied(null), 2500)
+  }
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/events')
+    const res = await fetch('/api/events', { headers: { Authorization: `Bearer ${token}` } })
     const data = await res.json()
     setEvents(Array.isArray(data) ? data : [])
     setLoading(false)
@@ -56,10 +167,12 @@ export default function AdminEvents({ token }: { token: string }) {
       tags: ev.tags || [],
       youtubeVideoId: ev.youtubeVideoId || '',
       ticketUrl: ev.ticketUrl || '',
-      imageUrl: String(r.image_url || ''),
+      imageUrl: ev.imageUrl || String(r.image_url || ''),
       partners: ev.partners || [],
       isActive: ev.isActive ?? Boolean(r.is_active ?? true),
       entryFee: ev.entryFee != null ? String(ev.entryFee) : (r.entry_fee != null ? String(r.entry_fee) : ''),
+      schedule: ev.schedule || [],
+      maxVendors: ev.maxVendors != null ? String(ev.maxVendors) : (r.max_vendors != null ? String(r.max_vendors) : ''),
     })
     setTagsInput((ev.tags || []).join(', '))
     setEditId(ev.id)
@@ -80,7 +193,7 @@ export default function AdminEvents({ token }: { token: string }) {
     const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
     const partners = form.partners.filter(p => p.name.trim())
     try {
-      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null }
+      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null, schedule: form.schedule.length > 0 ? form.schedule : null, maxVendors: form.maxVendors !== '' ? parseInt(form.maxVendors) : null }
       const res = editId
         ? await fetch(`/api/events/${editId}`, { method: 'PATCH', headers, body: JSON.stringify(body) })
         : await fetch('/api/events', { method: 'POST', headers, body: JSON.stringify({ id: `evt-${Date.now()}`, ...body }) })
@@ -141,6 +254,49 @@ export default function AdminEvents({ token }: { token: string }) {
             <input id="evt-fee" type="number" min="0" step="0.50" value={form.entryFee}
               onChange={e => setForm({ ...form, entryFee: e.target.value })}
               placeholder="z.B. 3.00" className="input-field" />
+          </div>
+
+          <div>
+            <label htmlFor="evt-max-vendors" className="admin-label">Max. Händlerplätze (leer = unbegrenzt)</label>
+            <input id="evt-max-vendors" type="number" min="1" step="1" value={form.maxVendors}
+              onChange={e => setForm({ ...form, maxVendors: e.target.value })}
+              placeholder="z.B. 20" className="input-field" />
+          </div>
+
+          {/* Mehrtägiger Zeitplan */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <label className="admin-label mb-0">Zeitplan (mehrtägig, optional)</label>
+              <button type="button"
+                onClick={() => setForm(f => ({ ...f, schedule: [...f.schedule, { label: `Tag ${f.schedule.length + 1}`, start: '10:00', end: '17:00' }] }))}
+                className="text-xs btn-outline !py-1 !px-3 flex items-center gap-1">
+                <Plus size={12} /> Tag hinzufügen
+              </button>
+            </div>
+            {form.schedule.length === 0 ? (
+              <p className="text-muted text-xs">Kein Zeitplan — Start/Endzeit oben wird verwendet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {form.schedule.map((day, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-bg-raised rounded-lg p-2">
+                    <input value={day.label}
+                      onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, label: e.target.value } : d) }))}
+                      placeholder="z.B. Samstag" className="input-field !py-1 text-sm flex-1" />
+                    <input type="time" value={day.start} title="Startzeit"
+                      onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, start: e.target.value } : d) }))}
+                      className="input-field !py-1 text-sm w-28" />
+                    <span className="text-muted text-xs">–</span>
+                    <input type="time" value={day.end} title="Endzeit"
+                      onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, end: e.target.value } : d) }))}
+                      className="input-field !py-1 text-sm w-28" />
+                    <button type="button" onClick={() => setForm(f => ({ ...f, schedule: f.schedule.filter((_, j) => j !== i) }))}
+                      className="text-red-500 hover:text-red-600 p-1" aria-label="Tag entfernen">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 md:col-span-2 p-3 bg-bg-raised rounded-xl">
@@ -269,6 +425,17 @@ export default function AdminEvents({ token }: { token: string }) {
                   )}
                 </div>
               </div>
+              <button type="button" onClick={() => setPromoEvent(ev)}
+                className="icon-btn text-muted hover:text-accent-pink shrink-0"
+                aria-label="Event bewerben" title="Event bewerben">
+                <Megaphone size={16} />
+              </button>
+              <button type="button" onClick={() => copyGmbPost(ev)}
+                className={`icon-btn shrink-0 transition-colors ${copied === ev.id ? 'text-green-500' : 'text-muted hover:text-accent-purple'}`}
+                aria-label="Google My Business Post kopieren"
+                title="GMB Post kopieren">
+                {copied === ev.id ? <Check size={16} /> : <Copy size={16} />}
+              </button>
               <button type="button" onClick={() => startEdit(ev)}
                 className="icon-btn text-muted hover:text-accent-gold shrink-0"
                 aria-label={`${ev.title} bearbeiten`}>
@@ -283,6 +450,60 @@ export default function AdminEvents({ token }: { token: string }) {
           ))}
         </div>
       )}
+
+      {/* Promo Modal */}
+      {promoEvent && (() => {
+        const texts = buildTexts(promoEvent)
+        const platforms = [
+          { key: 'instagram', label: 'Instagram', emoji: '📸', color: 'bg-gradient-to-r from-purple-500 to-pink-500', text: texts.instagram },
+          { key: 'facebook', label: 'Facebook', emoji: '👥', color: 'bg-blue-600', text: texts.facebook },
+          { key: 'whatsapp', label: 'WhatsApp', emoji: '💬', color: 'bg-green-500', text: texts.whatsapp },
+          { key: 'discord', label: 'Discord', emoji: '🎮', color: 'bg-indigo-500', text: texts.discord },
+          { key: 'gmb', label: 'Google My Business', emoji: '🔍', color: 'bg-accent-orange', text: texts.gmb },
+        ]
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setPromoEvent(null)}>
+            <div className="bg-bg-surface border border-theme rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-theme sticky top-0 bg-bg-surface z-10">
+                <div className="flex items-center gap-2">
+                  <Megaphone size={18} className="text-accent-pink" />
+                  <div>
+                    <p className="font-bold section-title">{promoEvent.title} bewerben</p>
+                    <p className="text-xs text-muted">Text kopieren → auf der Plattform einfügen</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPromoEvent(null)} className="icon-btn text-muted hover:text-primary" aria-label="Schließen">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-5 flex flex-col gap-4">
+                {platforms.map(p => (
+                  <div key={p.key} className="border border-theme rounded-xl overflow-hidden">
+                    <div className={`flex items-center justify-between px-4 py-2.5 ${p.color}`}>
+                      <span className="text-white font-bold text-sm flex items-center gap-2">
+                        {p.emoji} {p.label}
+                      </span>
+                      <button type="button" onClick={() => copyPlatform(p.text, p.key)}
+                        className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded-lg transition-colors">
+                        {copiedPlatform === p.key ? <><Check size={12} /> Kopiert!</> : <><Copy size={12} /> Kopieren</>}
+                      </button>
+                    </div>
+                    <pre className="text-xs text-secondary p-4 whitespace-pre-wrap font-sans leading-relaxed bg-bg-raised max-h-40 overflow-y-auto">
+                      {p.text}
+                    </pre>
+                  </div>
+                ))}
+
+                <div className="bg-accent-purple/5 border border-accent-purple/20 rounded-xl p-4 text-xs text-secondary">
+                  <p className="font-semibold text-primary mb-1">💡 Tipp für mehr Reichweite</p>
+                  <p>Poste auf allen Plattformen <strong>gleichzeitig</strong>, idealerweise <strong>Dienstag–Donnerstag 18–20 Uhr</strong>. Bitte Freunde den Post zu teilen — jeder Share = kostenlose Werbung und hilft dem Google-Ranking! 🚀</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
