@@ -625,14 +625,16 @@ app.all('/api/*splat', async (req, res) => {
             [`brand-${Date.now()}`, name, logoUrl, 9999]).catch(() => {})
         }
       }
+      const attendanceDaysLabels = { beide: 'Beide Tage (komplettes Event)', tag1: 'Nur Tag 1', tag2: 'Nur Tag 2' }
+      const attendanceLabel = attendanceDays ? (attendanceDaysLabels[attendanceDays] || attendanceDays) : null
       const dateFormatted = date ? new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
-      const subject = `Händler-Anfrage: ${eventName}${dateFormatted ? ' – ' + dateFormatted : ''}`
+      const subject = `Händler-Anfrage: ${eventName}${dateFormatted ? ' – ' + dateFormatted : ''}${attendanceLabel ? ' (' + attendanceLabel + ')' : ''}`
       const details = [
         `Name: ${name}`,
         `E-Mail: ${email}`,
         `Event: ${eventName}`,
         dateFormatted ? `Datum: ${dateFormatted}` : null,
-        attendanceDays ? `Teilnahme: ${attendanceDays}` : null,
+        attendanceLabel ? `Teilnahme: ${attendanceLabel}` : null,
         tcg ? `TCG: ${tcg}` : null,
         meters ? `Standfläche: ${meters}` : null,
         message ? `\nNachricht:\n${message}` : null,
