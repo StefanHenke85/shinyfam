@@ -428,12 +428,14 @@ app.all('/api/*splat', async (req, res) => {
         if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
         const { id, title, url } = req.body
         if (!id || !title || !url) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+        const existing = await dbExecute('SELECT id FROM youtube_videos WHERE id = ?', [id])
+        if (existing.rows.length > 0) return res.status(409).json({ error: 'Dieses Video ist bereits eingetragen' })
         const count = await dbExecute('SELECT COUNT(*) as c FROM youtube_videos')
         if (count.rows[0].c >= 6) {
           const oldest = await dbExecute('SELECT id FROM youtube_videos ORDER BY sort_order ASC, created_at ASC LIMIT 1')
           if (oldest.rows.length > 0) await dbExecute('DELETE FROM youtube_videos WHERE id = ?', [oldest.rows[0].id])
         }
-        await dbExecute('INSERT OR REPLACE INTO youtube_videos (id, title, url) VALUES (?,?,?)', [id, title, url])
+        await dbExecute('INSERT INTO youtube_videos (id, title, url) VALUES (?,?,?)', [id, title, url])
         return res.status(201).json({ ok: true })
       }
     }

@@ -10,8 +10,7 @@ import AdminMail from './AdminMail'
 import AdminAnalytics from './AdminAnalytics'
 import AdminContacts from './AdminContacts'
 import AdminSeo from './AdminSeo'
-import { CalendarDays, Palette, ShoppingBag, Package, LogOut, Store, Construction, Mail, BarChart2, Users, Search } from 'lucide-react'
-import YTIcon from '../../components/YTIcon'
+import { CalendarDays, Palette, ShoppingBag, Package, LogOut, Store, Construction, Mail, BarChart2, Users, Search, Instagram } from 'lucide-react'
 
 type Tab = 'events' | 'artworks' | 'products' | 'orders' | 'videos' | 'brands' | 'mail' | 'analytics' | 'contacts' | 'seo'
 
@@ -58,7 +57,7 @@ export default function Admin({ onMaintenanceChange }: { onMaintenanceChange?: (
     { key: 'artworks', label: 'Kunstwerke',    icon: <Palette size={16} /> },
     { key: 'products', label: 'Shop',          icon: <ShoppingBag size={16} /> },
     { key: 'orders',   label: 'Bestellungen',  icon: <Package size={16} /> },
-    { key: 'videos',   label: 'YouTube',       icon: <YTIcon size={16} /> },
+    { key: 'videos',   label: 'Instagram',     icon: <Instagram size={16} /> },
     { key: 'brands',   label: 'Händler',        icon: <Store size={16} /> },
     { key: 'mail',      label: 'Postfach',    icon: <Mail size={16} /> },
     { key: 'analytics', label: 'Statistik',   icon: <BarChart2 size={16} /> },
