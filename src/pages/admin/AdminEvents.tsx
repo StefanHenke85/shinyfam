@@ -294,10 +294,10 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
                   <div key={i} className="flex items-center gap-2 bg-bg-raised rounded-lg p-2">
                     <input value={tier.label}
                       onChange={e => setForm(f => ({ ...f, priceTiers: f.priceTiers.map((t, j) => j === i ? { ...t, label: e.target.value } : t) }))}
-                      placeholder="z.B. Indoor" className="input-field !py-1 text-sm flex-1" />
+                      placeholder="z.B. Drin, Draußen, Draußen überdacht" className="input-field !py-1 text-sm flex-1 min-w-0" />
                     <input type="number" min="0" step="0.50" value={tier.pricePerMeterDay} title="€ pro Meter pro Tag"
                       onChange={e => setForm(f => ({ ...f, priceTiers: f.priceTiers.map((t, j) => j === i ? { ...t, pricePerMeterDay: e.target.value } : t) }))}
-                      placeholder="€/m/Tag" className="input-field !py-1 text-sm w-28" />
+                      placeholder="€/m/Tag" className="input-field !py-1 text-sm !w-28" />
                     <button type="button" onClick={() => setForm(f => ({ ...f, priceTiers: f.priceTiers.filter((_, j) => j !== i) }))}
                       className="text-red-500 hover:text-red-600 p-1" aria-label="Preisstufe entfernen">
                       <X size={14} />
@@ -326,14 +326,14 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
                   <div key={i} className="flex items-center gap-2 bg-bg-raised rounded-lg p-2">
                     <input value={day.label}
                       onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, label: e.target.value } : d) }))}
-                      placeholder="z.B. Samstag" className="input-field !py-1 text-sm flex-1" />
+                      placeholder="z.B. Samstag" className="input-field !py-1 text-sm flex-1 min-w-0" />
                     <input type="time" value={day.start} title="Startzeit"
                       onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, start: e.target.value } : d) }))}
-                      className="input-field !py-1 text-sm w-28" />
+                      className="input-field !py-1 text-sm !w-28" />
                     <span className="text-muted text-xs">–</span>
                     <input type="time" value={day.end} title="Endzeit"
                       onChange={e => setForm(f => ({ ...f, schedule: f.schedule.map((d, j) => j === i ? { ...d, end: e.target.value } : d) }))}
-                      className="input-field !py-1 text-sm w-28" />
+                      className="input-field !py-1 text-sm !w-28" />
                     <button type="button" onClick={() => setForm(f => ({ ...f, schedule: f.schedule.filter((_, j) => j !== i) }))}
                       className="text-red-500 hover:text-red-600 p-1" aria-label="Tag entfernen">
                       <X size={14} />
