@@ -63,6 +63,7 @@ async function initDb() {
   await dbExecute(`CREATE TABLE IF NOT EXISTS shop_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, order_number TEXT UNIQUE NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, street TEXT NOT NULL, zip TEXT NOT NULL, city TEXT NOT NULL, items TEXT NOT NULL, subtotal REAL NOT NULL, shipping REAL DEFAULT 4.99, total REAL NOT NULL, payment_method TEXT DEFAULT 'invoice', payment_status TEXT DEFAULT 'pending', order_status TEXT DEFAULT 'new', notes TEXT, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS admin_sessions (token TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS youtube_videos (id TEXT PRIMARY KEY, title TEXT NOT NULL, sort_order INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
+  await dbExecute(`ALTER TABLE youtube_videos ADD COLUMN url TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS brands (id TEXT PRIMARY KEY, name TEXT NOT NULL, logo_url TEXT, website TEXT, sort_order INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS event_inquiries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, event_name TEXT NOT NULL, event_date TEXT, tcg TEXT, meters TEXT, message TEXT, status TEXT DEFAULT 'new', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
@@ -418,42 +419,21 @@ app.all('/api/*splat', async (req, res) => {
       }
     }
 
-    if (path === '/youtube-feed') {
-      const CHANNEL_ID = 'UCCH4_wO5f9D9E_-rbGw5ojw'
-      const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${CHANNEL_ID}`
-      try {
-        const feedRes = await fetch(feedUrl)
-        const xml = await feedRes.text()
-        const videos = []
-        const entries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) || []
-        for (const entry of entries.slice(0, 3)) {
-          const idMatch = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)
-          const titleMatch = entry.match(/<title>([^<]+)<\/title>/)
-          const pubMatch = entry.match(/<published>([^<]+)<\/published>/)
-          if (idMatch && titleMatch) videos.push({ id: idMatch[1], title: titleMatch[1], published: pubMatch?.[1] ?? '' })
-        }
-        if (videos.length > 0) return res.json(videos)
-      } catch {}
-      // Fallback: manuell gepflegte Videos aus DB
-      const r = await dbExecute('SELECT * FROM youtube_videos ORDER BY sort_order ASC, created_at DESC LIMIT 3').catch(() => ({ rows: [] }))
-      return res.json(r.rows)
-    }
-
     if (path === '/videos') {
       if (method === 'GET') {
-        const r = await dbExecute('SELECT * FROM youtube_videos ORDER BY sort_order ASC, created_at DESC LIMIT 3')
+        const r = await dbExecute('SELECT * FROM youtube_videos ORDER BY sort_order ASC, created_at DESC LIMIT 6')
         return res.json(r.rows)
       }
       if (method === 'POST') {
         if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
-        const { id, title } = req.body
-        if (!id || !title) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+        const { id, title, url } = req.body
+        if (!id || !title || !url) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
         const count = await dbExecute('SELECT COUNT(*) as c FROM youtube_videos')
-        if (count.rows[0].c >= 3) {
+        if (count.rows[0].c >= 6) {
           const oldest = await dbExecute('SELECT id FROM youtube_videos ORDER BY sort_order ASC, created_at ASC LIMIT 1')
           if (oldest.rows.length > 0) await dbExecute('DELETE FROM youtube_videos WHERE id = ?', [oldest.rows[0].id])
         }
-        await dbExecute('INSERT OR REPLACE INTO youtube_videos (id, title) VALUES (?,?)', [id, title])
+        await dbExecute('INSERT OR REPLACE INTO youtube_videos (id, title, url) VALUES (?,?,?)', [id, title, url])
         return res.status(201).json({ ok: true })
       }
     }

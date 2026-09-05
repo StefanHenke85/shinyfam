@@ -1,15 +1,15 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, CalendarDays, Palette, ChevronRight, ChevronLeft, Users, Zap, MapPin, Clock, ExternalLink, Store } from 'lucide-react'
+import { Sparkles, CalendarDays, Palette, ChevronRight, ChevronLeft, Users, Zap, MapPin, Clock, ExternalLink, Store, Instagram } from 'lucide-react'
 import EventCard from '../components/EventCard'
-import YTIcon from '../components/YTIcon'
 import CountdownTimer from '../components/CountdownTimer'
 import { useTheme } from '../contexts/ThemeContext'
 import type { TCGEvent } from '../types'
 import EventInquiryForm from '../components/EventInquiryForm'
 import NewsletterSignup from '../components/NewsletterSignup'
+import InstagramEmbed from '../components/InstagramEmbed'
 
-interface YTVideo { id: string; title: string }
+interface YTVideo { id: string; title: string; url: string }
 interface Artwork { id: string; title: string; image_url: string }
 
 function NextEventInquiry({ event }: { event: TCGEvent }) {
@@ -44,7 +44,7 @@ export default function Home() {
       .then(r => r.json())
       .then(data => setEvents(Array.isArray(data) ? data : []))
       .catch(() => {})
-    fetch('/api/youtube-feed')
+    fetch('/api/videos')
       .then(r => r.json())
       .then(data => setVideos(Array.isArray(data) ? data : []))
       .catch(() => {})
@@ -463,23 +463,16 @@ export default function Home() {
           <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
             <div>
               <h2 id="yt-heading" className="font-display text-3xl font-bold section-title flex items-center gap-2">
-                <YTIcon size={24} className="text-red-500" />
+                <Instagram size={24} className="text-accent-pink" />
                 {t('home.ourVideos')}
               </h2>
               <p className="text-secondary mt-1 text-sm">{t('home.videosub')}</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {videos.map((v) => (
               <div key={v.id} className="card rounded-2xl overflow-hidden">
-                <div className="yt-embed-wrap">
-                  <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${v.id}`}
-                    title={v.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
+                <InstagramEmbed url={v.url} />
                 <p className="p-3 text-sm font-medium section-title truncate">{v.title}</p>
               </div>
             ))}

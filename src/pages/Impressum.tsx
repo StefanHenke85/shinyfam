@@ -21,7 +21,7 @@ export default function Impressum() {
             <h2 className="font-display font-bold text-lg section-title mb-3">Technische Umsetzung</h2>
             <p className="text-secondary text-sm leading-relaxed">
               Stefan Henke<br />
-              Rheinstraße 40<br />
+              Xantener Straße 39<br />
               47495 Rheinberg<br />
               Deutschland
             </p>
