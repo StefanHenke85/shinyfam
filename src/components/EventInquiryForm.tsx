@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import { Send, X } from 'lucide-react'
 import ImageUpload from './ImageUpload'
+import type { PriceTier } from '../types'
 
 interface Props {
   eventName: string
   eventDate: string
   eventEndDate?: string | null
+  priceTiers?: PriceTier[] | null
   onClose: () => void
 }
 
-const emptyForm = { name: '', email: '', company: '', phone: '', street: '', zipCity: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide' }
+const emptyForm = { name: '', email: '', company: '', phone: '', street: '', zipCity: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide', priceTier: '' }
 
-export default function EventInquiryForm({ eventName, eventDate, eventEndDate, onClose }: Props) {
+export default function EventInquiryForm({ eventName, eventDate, eventEndDate, priceTiers, onClose }: Props) {
   const isMultiDay = !!eventEndDate && new Date(eventEndDate).toDateString() !== new Date(eventDate).toDateString()
-  const [form, setForm] = useState(emptyForm)
+  const hasPriceTiers = !!priceTiers && priceTiers.length > 0
+  const [form, setForm] = useState({ ...emptyForm, priceTier: hasPriceTiers ? priceTiers![0].label : '' })
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
 
@@ -23,7 +26,7 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, o
     await fetch('/api/event-inquiry', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, eventName, date: eventDate, attendanceDays: isMultiDay ? form.attendanceDays : null }),
+      body: JSON.stringify({ ...form, eventName, date: eventDate, attendanceDays: isMultiDay ? form.attendanceDays : null, priceTier: hasPriceTiers ? form.priceTier : null }),
     }).catch(() => {})
     setSent(true)
     setSending(false)
@@ -104,6 +107,17 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, o
               onChange={e => setForm({ ...form, meters: e.target.value })}
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>
+          {hasPriceTiers && (
+            <div>
+              <label htmlFor="inquiry-price-tier" className="text-secondary text-xs mb-1 block">Standort-Kategorie *</label>
+              <select id="inquiry-price-tier" required value={form.priceTier} onChange={e => setForm({ ...form, priceTier: e.target.value })}
+                className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors">
+                {priceTiers!.map(t => (
+                  <option key={t.label} value={t.label}>{t.label} ({t.pricePerMeterDay.toFixed(2)} € / Meter / Tag)</option>
+                ))}
+              </select>
+            </div>
+          )}
           {isMultiDay && (
             <div>
               <label htmlFor="inquiry-days" className="text-secondary text-xs mb-1 block">Teilnahme an</label>

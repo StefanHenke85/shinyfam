@@ -73,14 +73,27 @@ async function nextInvoiceNumber() {
   return `RE-${year}-${String(seq).padStart(4, '0')}`
 }
 
+function resolvePricePerMeterDay(inquiry, event) {
+  const tiers = event?.price_tiers ? JSON.parse(event.price_tiers) : null
+  if (tiers && tiers.length > 0) {
+    if (inquiry.price_tier) {
+      const match = tiers.find(t => t.label === inquiry.price_tier)
+      if (match) return { price: Number(match.pricePerMeterDay), tierLabel: match.label }
+    }
+    return { price: null, tierLabel: null }
+  }
+  return { price: event?.price_per_meter_day != null ? Number(event.price_per_meter_day) : null, tierLabel: null }
+}
+
 function computeInvoiceItems(inquiry, event) {
-  const pricePerMeterDay = event?.price_per_meter_day != null ? Number(event.price_per_meter_day) : null
+  const { price: pricePerMeterDay, tierLabel } = resolvePricePerMeterDay(inquiry, event)
   const meters = inquiry.meters_num != null ? Number(inquiry.meters_num) : null
   const days = inquiry.days_count != null ? Number(inquiry.days_count) : 1
   const items = []
+  const tierSuffix = tierLabel ? `, ${tierLabel}` : ''
   if (pricePerMeterDay != null && meters != null) {
     items.push({
-      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''} (${meters} m × ${days} Tag${days > 1 ? 'e' : ''})`,
+      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''} (${meters} m × ${days} Tag${days > 1 ? 'e' : ''}${tierSuffix})`,
       quantity: meters * days,
       unit: 'm/Tag',
       unitPrice: pricePerMeterDay,
@@ -88,7 +101,7 @@ function computeInvoiceItems(inquiry, event) {
     })
   } else {
     items.push({
-      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''}${inquiry.meters ? ' (' + inquiry.meters + ')' : ''}`,
+      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''}${inquiry.meters ? ' (' + inquiry.meters + ')' : ''}${tierSuffix}`,
       quantity: 1,
       unit: '',
       unitPrice: null,
@@ -179,6 +192,7 @@ async function initDb() {
   await dbExecute(`ALTER TABLE events ADD COLUMN schedule TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN max_vendors INTEGER DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN price_per_meter_day REAL DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE events ADD COLUMN price_tiers TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, motif TEXT NOT NULL, size TEXT, message TEXT, status TEXT DEFAULT 'new', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, price REAL NOT NULL, stock INTEGER DEFAULT 1, image_url TEXT, is_featured INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, tags TEXT DEFAULT '[]', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS artworks (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, image_url TEXT, tags TEXT DEFAULT '[]', sold INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
@@ -198,7 +212,9 @@ async function initDb() {
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN archived INTEGER DEFAULT 0`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN meters_num REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN days_count REAL DEFAULT NULL`).catch(() => {})
-  await dbExecute(`CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, invoice_date TEXT NOT NULL, inquiry_id INTEGER, event_name TEXT NOT NULL, event_date TEXT, recipient_company TEXT, recipient_name TEXT NOT NULL, recipient_street TEXT, recipient_zip_city TEXT, items TEXT NOT NULL, total REAL, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
+  await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN price_tier TEXT DEFAULT NULL`).catch(() => {})
+  await dbExecute(`CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, invoice_date TEXT NOT NULL, inquiry_id INTEGER, event_name TEXT NOT NULL, event_date TEXT, recipient_company TEXT, recipient_name TEXT NOT NULL, recipient_street TEXT, recipient_zip_city TEXT, items TEXT NOT NULL, total REAL, status TEXT DEFAULT 'open', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
+  await dbExecute(`ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT 'open'`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS analytics (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, referrer TEXT, ua TEXT, country TEXT, ts TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_ts ON analytics(ts)`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_path ON analytics(path)`).catch(() => {})
@@ -365,13 +381,13 @@ app.all('/api/*splat', async (req, res) => {
         const adminMode = await isAdmin(req.headers.authorization)
         const sql = adminMode ? 'SELECT * FROM events ORDER BY date ASC' : "SELECT * FROM events WHERE is_active = 1 OR is_active = '1' ORDER BY date ASC"
         const r = await dbExecute(sql)
-        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null, pricePerMeterDay: row.price_per_meter_day != null ? Number(row.price_per_meter_day) : null })))
+        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null, pricePerMeterDay: row.price_per_meter_day != null ? Number(row.price_per_meter_day) : null, priceTiers: row.price_tiers ? JSON.parse(row.price_tiers) : null })))
       }
       if (method === 'POST') {
         if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
-        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay } = req.body
+        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers } = req.body
         if (!id || !title || !date) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
-        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors,price_per_meter_day) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null])
+        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors,price_per_meter_day,price_tiers) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null])
         return res.status(201).json({ ok: true })
       }
     }
@@ -393,8 +409,8 @@ app.all('/api/*splat', async (req, res) => {
         return res.json({ ok: true })
       }
       if (method === 'PATCH') {
-        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay } = req.body
-        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=?,price_per_meter_day=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, id])
+        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers } = req.body
+        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=?,price_per_meter_day=?,price_tiers=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null, id])
         return res.json({ ok: true })
       }
     }
@@ -736,13 +752,13 @@ app.all('/api/*splat', async (req, res) => {
     }
 
     if (path === '/event-inquiry' && method === 'POST') {
-      const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity } = req.body
+      const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity, priceTier } = req.body
       if (!name || !email || !eventName || !company) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
       const resolvedMetersNum = metersNum != null ? Number(metersNum) : (meters ? parseFloat(String(meters).replace(',', '.')) || null : null)
       const daysCount = attendanceDays === 'beide' ? 2 : 1
       // Immer in DB speichern — unabhängig vom Mailserver
-      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount]).catch(() => {})
+      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,price_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount, priceTier || null]).catch(() => {})
       // Logo hochgeladen → direkt als Händler eintragen (nur wenn noch nicht vorhanden)
       if (logoUrl) {
         const existing = await dbExecute('SELECT id FROM brands WHERE name = ?', [company]).catch(() => ({ rows: [] }))
@@ -1062,6 +1078,15 @@ app.all('/api/*splat', async (req, res) => {
       return res.json(r.rows.map(row => ({ ...row, items: JSON.parse(row.items || '[]') })))
     }
 
+    const invoiceStatusMatch = path.match(/^\/invoices\/(\d+)\/status$/)
+    if (invoiceStatusMatch && method === 'PATCH') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { status } = req.body
+      if (!['open', 'sent', 'paid'].includes(status)) return res.status(400).json({ error: 'Ungültiger Status' })
+      await dbExecute('UPDATE invoices SET status = ? WHERE id = ?', [status, invoiceStatusMatch[1]])
+      return res.json({ ok: true })
+    }
+
     // Einzelrechnung für eine Händler-Anfrage erstellen (PDF als Base64 zurückgeben)
     if (path === '/invoices/generate' && method === 'POST') {
       if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
@@ -1158,6 +1183,7 @@ app.all('/api/*splat', async (req, res) => {
         const err = await brevoRes.json().catch(() => ({}))
         return res.status(500).json({ error: err.message || 'Mail-Versand fehlgeschlagen' })
       }
+      if (invoiceNumber) await dbExecute("UPDATE invoices SET status = 'sent' WHERE invoice_number = ?", [invoiceNumber]).catch(() => {})
       return res.json({ ok: true })
     }
 

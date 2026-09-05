@@ -170,6 +170,7 @@ export default function EventCard({ event }: Props) {
                 eventName={event.title}
                 eventDate={event.date}
                 eventEndDate={event.endDate}
+                priceTiers={event.priceTiers}
                 onClose={() => setShowInquiry(false)}
               />
             )}

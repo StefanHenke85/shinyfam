@@ -29,6 +29,19 @@ interface ArtworkOrder {
   status: string; created_at: string
 }
 
+interface InvoiceItem { description: string; quantity: number | null; unit: string; unitPrice: number | null; total: number | null }
+interface Invoice {
+  id: number; invoice_number: string; invoice_date: string; inquiry_id: number | null
+  event_name: string; event_date: string | null
+  recipient_company: string | null; recipient_name: string
+  recipient_street: string | null; recipient_zip_city: string | null
+  items: InvoiceItem[]; total: number | null; status: string; created_at: string
+}
+
+const invoiceStatusLabels: Record<string, string> = {
+  open: 'Offen', sent: 'Gesendet', paid: 'Bezahlt',
+}
+
 type SortKey = 'date_desc' | 'date_asc' | 'status' | 'event'
 
 const shopStatusLabels: Record<string, string> = {
@@ -47,7 +60,7 @@ const artworkStatusLabels: Record<string, string> = {
 const statusOrder: Record<string, number> = { new: 0, contacted: 1, confirmed: 2, declined: 3, done: 4 }
 
 export default function AdminOrders({ token }: { token: string }) {
-  const [tab, setTab] = useState<'inquiries' | 'artwork' | 'shop'>('inquiries')
+  const [tab, setTab] = useState<'inquiries' | 'artwork' | 'shop' | 'invoices'>('inquiries')
   const [shopOrders, setShopOrders] = useState<ShopOrder[]>([])
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [artworkOrders, setArtworkOrders] = useState<ArtworkOrder[]>([])
@@ -64,20 +77,24 @@ export default function AdminOrders({ token }: { token: string }) {
   const [mailMsg, setMailMsg] = useState<Record<number, string>>({})
   const [invoicing, setInvoicing] = useState<number | 'event' | null>(null)
   const [invoiceMsg, setInvoiceMsg] = useState<Record<number | string, string>>({})
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [invoiceStatusSaving, setInvoiceStatusSaving] = useState<number | null>(null)
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
   async function load() {
     setLoading(true)
-    const [shopRes, inquiriesRes, artworkRes, tmplRes] = await Promise.all([
+    const [shopRes, inquiriesRes, artworkRes, tmplRes, invoicesRes] = await Promise.all([
       fetch('/api/shop/orders/admin', { headers }).then(r => r.json()).catch(() => []),
       fetch('/api/event-inquiries', { headers }).then(r => r.json()).catch(() => []),
       fetch('/api/orders', { headers }).then(r => r.json()).catch(() => []),
       fetch('/api/mail/templates', { headers }).then(r => r.json()).catch(() => []),
+      fetch('/api/invoices', { headers }).then(r => r.json()).catch(() => []),
     ])
     setShopOrders(Array.isArray(shopRes) ? shopRes : [])
     setInquiries(Array.isArray(inquiriesRes) ? inquiriesRes : [])
     setArtworkOrders(Array.isArray(artworkRes) ? artworkRes : [])
     setTemplates(Array.isArray(tmplRes) ? tmplRes : [])
+    setInvoices(Array.isArray(invoicesRes) ? invoicesRes : [])
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -170,6 +187,8 @@ export default function AdminOrders({ token }: { token: string }) {
         const sendData = await sendRes.json()
         setInvoiceMsg(prev => ({ ...prev, [inq.id]: sendRes.ok ? `✓ ${d.invoiceNumber} gesendet` : '✗ ' + (sendData.error || 'Mailfehler') }))
       }
+      const invRes = await fetch('/api/invoices', { headers }).then(r => r.json()).catch(() => [])
+      setInvoices(Array.isArray(invRes) ? invRes : [])
     } finally {
       setInvoicing(null)
       setTimeout(() => setInvoiceMsg(prev => { const n = { ...prev }; delete n[inq.id]; return n }), 4000)
@@ -186,10 +205,19 @@ export default function AdminOrders({ token }: { token: string }) {
       if (!res.ok) { setInvoiceMsg(prev => ({ ...prev, event: '✗ ' + (d.error || 'Fehler') })); return }
       for (const inv of d.invoices) downloadPdf(inv.pdf, inv.filename)
       setInvoiceMsg(prev => ({ ...prev, event: `✓ ${d.count} Rechnungen erstellt` }))
+      const invRes = await fetch('/api/invoices', { headers }).then(r => r.json()).catch(() => [])
+      setInvoices(Array.isArray(invRes) ? invRes : [])
     } finally {
       setInvoicing(null)
       setTimeout(() => setInvoiceMsg(prev => { const n = { ...prev }; delete n.event; return n }), 5000)
     }
+  }
+
+  async function updateInvoiceStatus(id: number, status: string) {
+    setInvoiceStatusSaving(id)
+    await fetch(`/api/invoices/${id}/status`, { method: 'PATCH', headers, body: JSON.stringify({ status }) })
+    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status } : inv))
+    setInvoiceStatusSaving(null)
   }
 
   async function archiveEvent(eventName: string, eventDate: string | null, archived: boolean) {
@@ -285,6 +313,11 @@ export default function AdminOrders({ token }: { token: string }) {
         <button type="button" onClick={() => { setTab('shop'); setExpanded(null) }}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'shop' ? 'bg-accent-orange text-white' : 'bg-bg-raised text-muted border border-theme'}`}>
           <Package size={15} /> Shop-Bestellungen
+        </button>
+        <button type="button" onClick={() => { setTab('invoices'); setExpanded(null) }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === 'invoices' ? 'bg-accent-gold text-white' : 'bg-bg-raised text-muted border border-theme'}`}>
+          <Receipt size={15} /> Rechnungen
+          {invoices.filter(i => i.status === 'open').length > 0 && <span className="ml-1 bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full">{invoices.filter(i => i.status === 'open').length}</span>}
         </button>
       </div>
 
@@ -528,7 +561,7 @@ export default function AdminOrders({ token }: { token: string }) {
             ))}
           </div>
         )
-      ) : (
+      ) : tab === 'shop' ? (
         shopOrders.length === 0 ? (
           <p className="text-muted text-center py-8">Noch keine Shop-Bestellungen.</p>
         ) : (
@@ -561,6 +594,57 @@ export default function AdminOrders({ token }: { token: string }) {
                         <button key={s} type="button" onClick={() => updateShopStatus(o.id, s)}
                           className={`text-xs px-3 py-1 rounded-full border transition-colors ${o.order_status === s ? 'btn-primary !py-1 !px-3' : 'btn-outline !py-1 !px-3'}`}>
                           {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+        invoices.length === 0 ? (
+          <p className="text-muted text-center py-8">Noch keine Rechnungen erstellt.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="admin-card overflow-hidden p-0">
+                <button type="button"
+                  className="w-full p-4 flex items-center justify-between gap-4 text-left"
+                  onClick={() => setExpanded(expanded === inv.id ? null : inv.id)}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`admin-status-badge ${inv.status === 'paid' ? 'admin-status-delivered' : inv.status === 'sent' ? 'admin-status-processing' : 'admin-status-new'}`}>
+                      {invoiceStatusLabels[inv.status] || inv.status}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="section-title font-medium text-sm">{inv.invoice_number} · {inv.recipient_company || inv.recipient_name}</p>
+                      <p className="text-secondary text-xs truncate">{inv.event_name}{inv.event_date ? ' · ' + new Date(inv.event_date).toLocaleDateString('de-DE') : ''}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="font-bold section-title">{inv.total != null ? `${inv.total.toFixed(2)} €` : 'n. Absprache'}</span>
+                    {expanded === inv.id ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
+                  </div>
+                </button>
+                {expanded === inv.id && (
+                  <div className="px-4 pb-4 border-t border-theme pt-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className="text-muted text-xs">Empfänger</span><br />{inv.recipient_name}</div>
+                      {inv.recipient_street && <div><span className="text-muted text-xs">Straße</span><br />{inv.recipient_street}</div>}
+                      {inv.recipient_zip_city && <div><span className="text-muted text-xs">PLZ/Ort</span><br />{inv.recipient_zip_city}</div>}
+                      <div><span className="text-muted text-xs">Rechnungsdatum</span><br />{inv.invoice_date}</div>
+                    </div>
+                    <div className="text-sm">
+                      {inv.items.map((it, i) => (
+                        <p key={i} className="text-secondary text-xs py-0.5">{it.description} — {it.total != null ? `${it.total.toFixed(2)} €` : 'nach Absprache'}</p>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 flex-wrap pt-1 items-center">
+                      {Object.entries(invoiceStatusLabels).map(([s, label]) => (
+                        <button key={s} type="button" disabled={invoiceStatusSaving === inv.id} onClick={() => updateInvoiceStatus(inv.id, s)}
+                          className={`text-xs px-3 py-1 rounded-full border transition-colors flex items-center gap-1 disabled:opacity-50 ${inv.status === s ? 'btn-primary !py-1 !px-3' : 'btn-outline !py-1 !px-3'}`}>
+                          {s === 'paid' && <CheckCheck size={11} />}{label}
                         </button>
                       ))}
                     </div>

@@ -23,7 +23,7 @@ function NextEventInquiry({ event }: { event: TCGEvent }) {
           Als Händler anfragen
         </button>
       ) : (
-        <EventInquiryForm eventName={event.title} eventDate={event.date} eventEndDate={event.endDate} onClose={() => setOpen(false)} />
+        <EventInquiryForm eventName={event.title} eventDate={event.date} eventEndDate={event.endDate} priceTiers={event.priceTiers} onClose={() => setOpen(false)} />
       )}
     </div>
   )

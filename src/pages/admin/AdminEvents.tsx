@@ -4,6 +4,7 @@ import type { TCGEvent, EventPartner, EventScheduleDay } from '../../types'
 import ImageUpload from '../../components/ImageUpload'
 
 interface Brand { id: string; name: string; logo_url: string | null; website: string | null }
+interface PriceTierForm { label: string; pricePerMeterDay: string }
 
 interface FormState {
   title: string; date: string; endDate: string; location: string
@@ -11,12 +12,13 @@ interface FormState {
   youtubeVideoId: string; ticketUrl: string; imageUrl: string
   partners: EventPartner[]; isActive: boolean; entryFee: string
   schedule: EventScheduleDay[]; maxVendors: string; pricePerMeterDay: string
+  priceTiers: PriceTierForm[]
 }
 
 const EMPTY: FormState = {
   title: '', date: '', endDate: '', location: '', address: '', city: '',
   description: '', tags: [], youtubeVideoId: '', ticketUrl: '', imageUrl: '', partners: [],
-  isActive: true, entryFee: '', schedule: [], maxVendors: '', pricePerMeterDay: '',
+  isActive: true, entryFee: '', schedule: [], maxVendors: '', pricePerMeterDay: '', priceTiers: [],
 }
 
 export default function AdminEvents({ token }: { token: string }) {
@@ -174,6 +176,7 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
       schedule: ev.schedule || [],
       maxVendors: ev.maxVendors != null ? String(ev.maxVendors) : (r.max_vendors != null ? String(r.max_vendors) : ''),
       pricePerMeterDay: ev.pricePerMeterDay != null ? String(ev.pricePerMeterDay) : (r.price_per_meter_day != null ? String(r.price_per_meter_day) : ''),
+      priceTiers: ((ev.priceTiers ?? (r.price_tiers ? JSON.parse(String(r.price_tiers)) : [])) as { label: string; pricePerMeterDay: number }[]).map(t => ({ label: t.label, pricePerMeterDay: String(t.pricePerMeterDay) })),
     })
     setTagsInput((ev.tags || []).join(', '))
     setEditId(ev.id)
@@ -194,7 +197,8 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
     const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
     const partners = form.partners.filter(p => p.name.trim())
     try {
-      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null, schedule: form.schedule.length > 0 ? form.schedule : null, maxVendors: form.maxVendors !== '' ? parseInt(form.maxVendors) : null, pricePerMeterDay: form.pricePerMeterDay !== '' ? parseFloat(form.pricePerMeterDay) : null }
+      const priceTiers = form.priceTiers.filter(t => t.label.trim() && t.pricePerMeterDay !== '').map(t => ({ label: t.label.trim(), pricePerMeterDay: parseFloat(t.pricePerMeterDay) }))
+      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null, schedule: form.schedule.length > 0 ? form.schedule : null, maxVendors: form.maxVendors !== '' ? parseInt(form.maxVendors) : null, pricePerMeterDay: form.pricePerMeterDay !== '' ? parseFloat(form.pricePerMeterDay) : null, priceTiers }
       const res = editId
         ? await fetch(`/api/events/${editId}`, { method: 'PATCH', headers, body: JSON.stringify(body) })
         : await fetch('/api/events', { method: 'POST', headers, body: JSON.stringify({ id: `evt-${Date.now()}`, ...body }) })
@@ -264,11 +268,44 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
               placeholder="z.B. 20" className="input-field" />
           </div>
 
-          <div>
+          <div className={form.priceTiers.length > 0 ? 'opacity-40 pointer-events-none' : ''}>
             <label htmlFor="evt-price-per-meter" className="admin-label">Standgebühr (€ pro Meter pro Tag, für Rechnungen)</label>
             <input id="evt-price-per-meter" type="number" min="0" step="0.50" value={form.pricePerMeterDay}
               onChange={e => setForm({ ...form, pricePerMeterDay: e.target.value })}
-              placeholder="z.B. 12.50" className="input-field" />
+              placeholder="z.B. 12.50" className="input-field" disabled={form.priceTiers.length > 0} />
+            <p className="text-muted text-xs mt-1">Nur wenn es keine unterschiedlichen Standort-Kategorien gibt. Sonst unten Preisstufen anlegen.</p>
+          </div>
+
+          {/* Preisstufen (z.B. Indoor / Outdoor überdacht / Outdoor Freifläche) */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <label className="admin-label mb-0">Preisstufen nach Standort (optional, überschreibt die einfache Standgebühr)</label>
+              <button type="button"
+                onClick={() => setForm(f => ({ ...f, priceTiers: [...f.priceTiers, { label: '', pricePerMeterDay: '' }] }))}
+                className="text-xs btn-outline !py-1 !px-3 flex items-center gap-1">
+                <Plus size={12} /> Preisstufe hinzufügen
+              </button>
+            </div>
+            {form.priceTiers.length === 0 ? (
+              <p className="text-muted text-xs">Keine Preisstufen — Standgebühr oben wird verwendet. Händler können dann keine Standort-Kategorie auswählen.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {form.priceTiers.map((tier, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-bg-raised rounded-lg p-2">
+                    <input value={tier.label}
+                      onChange={e => setForm(f => ({ ...f, priceTiers: f.priceTiers.map((t, j) => j === i ? { ...t, label: e.target.value } : t) }))}
+                      placeholder="z.B. Indoor" className="input-field !py-1 text-sm flex-1" />
+                    <input type="number" min="0" step="0.50" value={tier.pricePerMeterDay} title="€ pro Meter pro Tag"
+                      onChange={e => setForm(f => ({ ...f, priceTiers: f.priceTiers.map((t, j) => j === i ? { ...t, pricePerMeterDay: e.target.value } : t) }))}
+                      placeholder="€/m/Tag" className="input-field !py-1 text-sm w-28" />
+                    <button type="button" onClick={() => setForm(f => ({ ...f, priceTiers: f.priceTiers.filter((_, j) => j !== i) }))}
+                      className="text-red-500 hover:text-red-600 p-1" aria-label="Preisstufe entfernen">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Mehrtägiger Zeitplan */}

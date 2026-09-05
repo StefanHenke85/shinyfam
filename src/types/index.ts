@@ -29,6 +29,12 @@ export interface TCGEvent {
   schedule?: EventScheduleDay[]
   maxVendors?: number | null
   pricePerMeterDay?: number | null
+  priceTiers?: PriceTier[] | null
+}
+
+export interface PriceTier {
+  label: string
+  pricePerMeterDay: number
 }
 
 export interface ArtworkPiece {
