@@ -6,6 +6,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import CartSidebar from './components/CartSidebar'
 import CookieBanner from './components/CookieBanner'
+import ScrollToTopButton from './components/ScrollToTopButton'
 import Home from './pages/Home'
 import Events from './pages/Events'
 import Artwork from './pages/Artwork'
@@ -102,6 +103,7 @@ export default function App() {
                   </main>
                   <Footer />
                   <CookieBanner />
+                  <ScrollToTopButton />
                 </div>
               )
             } />
