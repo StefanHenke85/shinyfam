@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send, Archive, ArchiveRestore, Filter } from 'lucide-react'
 
 interface MailTemplate {
   id: number; name: string; type: string; subject: string; body: string
@@ -16,7 +16,7 @@ interface Inquiry {
   tcg: string | null; meters: string | null; message: string | null
   attendance_days: string | null; logo_url: string | null
   company: string | null; phone: string | null; street: string | null; zip_city: string | null
-  status: string; created_at: string
+  status: string; created_at: string; archived: number | null
 }
 
 const attendanceDaysLabels: Record<string, string> = {
@@ -54,6 +54,9 @@ export default function AdminOrders({ token }: { token: string }) {
   const [expanded, setExpanded] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [sort, setSort] = useState<SortKey>('date_desc')
+  const [eventFilter, setEventFilter] = useState<string>('all')
+  const [showArchived, setShowArchived] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [noteEdits, setNoteEdits] = useState<Record<number, string>>({})
   const [noteSaving, setNoteSaving] = useState<number | null>(null)
   const [templates, setTemplates] = useState<MailTemplate[]>([])
@@ -135,7 +138,41 @@ export default function AdminOrders({ token }: { token: string }) {
     setNoteSaving(null)
   }
 
-  const sortedInquiries = [...inquiries].sort((a, b) => {
+  async function archiveEvent(eventName: string, eventDate: string | null, archived: boolean) {
+    const label = eventDate ? `${eventName} (${new Date(eventDate).toLocaleDateString('de-DE')})` : eventName
+    if (!confirm(archived ? `Alle Anfragen für „${label}" archivieren?` : `Alle Anfragen für „${label}" wiederherstellen?`)) return
+    setArchiving(true)
+    await fetch('/api/event-inquiries/archive-event', { method: 'PATCH', headers, body: JSON.stringify({ eventName, eventDate, archived }) })
+    setInquiries(prev => prev.map(i => i.event_name === eventName && (i.event_date ?? '') === (eventDate ?? '') ? { ...i, archived: archived ? 1 : 0 } : i))
+    setArchiving(false)
+  }
+
+  const eventOccurrences = useMemo(() => {
+    const map = new Map<string, { eventName: string; eventDate: string | null }>()
+    for (const i of inquiries) {
+      const key = `${i.event_name}|${i.event_date ?? ''}`
+      if (!map.has(key)) map.set(key, { eventName: i.event_name, eventDate: i.event_date })
+    }
+    return Array.from(map.entries())
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => (b.eventDate ?? '').localeCompare(a.eventDate ?? ''))
+  }, [inquiries])
+
+  const isArchived = (i: Inquiry) => i.archived === 1 || String(i.archived) === '1'
+
+  const matchesEventFilter = (i: Inquiry) => {
+    if (eventFilter === 'all') return true
+    const [name, date] = eventFilter.split('|')
+    return i.event_name === name && (i.event_date ?? '') === date
+  }
+
+  const visibleInquiries = inquiries.filter(i => {
+    if (isArchived(i) !== showArchived) return false
+    if (!matchesEventFilter(i)) return false
+    return true
+  })
+
+  const sortedInquiries = [...visibleInquiries].sort((a, b) => {
     if (sort === 'date_asc') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     if (sort === 'date_desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     if (sort === 'status') return (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9)
@@ -143,7 +180,7 @@ export default function AdminOrders({ token }: { token: string }) {
     return 0
   })
 
-  const newInquiries = inquiries.filter(i => i.status === 'new').length
+  const newInquiries = inquiries.filter(i => i.status === 'new' && !isArchived(i)).length
   const newArtwork = artworkOrders.filter(o => o.status === 'new').length
 
   return (
@@ -171,8 +208,32 @@ export default function AdminOrders({ token }: { token: string }) {
         <>
           {inquiries.length > 0 && (
             <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <Filter size={14} className="text-muted shrink-0" />
+              <span className="text-xs text-muted">Event:</span>
+              <select value={eventFilter} onChange={e => setEventFilter(e.target.value)}
+                className="input-field text-xs !py-1 !px-2.5 w-auto">
+                <option value="all">Alle Events</option>
+                {eventOccurrences.map(({ key, eventName, eventDate }) => (
+                  <option key={key} value={key}>
+                    {eventName}{eventDate ? ` – ${new Date(eventDate).toLocaleDateString('de-DE')}` : ''}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setShowArchived(v => !v)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${showArchived ? 'bg-accent-purple text-white border-transparent' : 'border-theme text-secondary hover:border-accent-purple/50'}`}>
+                <Archive size={11} /> {showArchived ? 'Archiv' : 'Aktiv'}
+              </button>
+              {eventFilter !== 'all' && (
+                <button type="button" disabled={archiving} onClick={() => {
+                  const [name, date] = eventFilter.split('|')
+                  archiveEvent(name, date || null, !showArchived)
+                }}
+                  className="text-xs px-2.5 py-1 rounded-full border border-theme text-secondary hover:border-accent-purple/50 transition-colors flex items-center gap-1 disabled:opacity-50">
+                  {showArchived ? <><ArchiveRestore size={11} /> Event wiederherstellen</> : <><Archive size={11} /> Event archivieren</>}
+                </button>
+              )}
+              <div className="w-px h-4 bg-theme mx-1" />
               <ArrowUpDown size={14} className="text-muted shrink-0" />
-              <span className="text-xs text-muted">Sortierung:</span>
               {([['date_desc', 'Neueste zuerst'], ['date_asc', 'Älteste zuerst'], ['status', 'Status'], ['event', 'Event']] as [SortKey, string][]).map(([key, label]) => (
                 <button key={key} type="button" onClick={() => setSort(key)}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${sort === key ? 'bg-accent-purple text-white border-transparent' : 'border-theme text-secondary hover:border-accent-purple/50'}`}>
@@ -182,7 +243,9 @@ export default function AdminOrders({ token }: { token: string }) {
             </div>
           )}
           {sortedInquiries.length === 0 ? (
-            <p className="text-muted text-center py-8">Noch keine Händler-Anfragen.</p>
+            <p className="text-muted text-center py-8">
+              {inquiries.length === 0 ? 'Noch keine Händler-Anfragen.' : showArchived ? 'Keine archivierten Anfragen für diese Auswahl.' : 'Keine aktiven Anfragen für diese Auswahl.'}
+            </p>
           ) : (
             <div className="flex flex-col gap-3">
               {sortedInquiries.map((inq) => {

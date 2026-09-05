@@ -73,6 +73,7 @@ async function initDb() {
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN phone TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN street TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN zip_city TEXT DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN archived INTEGER DEFAULT 0`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS analytics (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, referrer TEXT, ua TEXT, country TEXT, ts TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_ts ON analytics(ts)`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_path ON analytics(path)`).catch(() => {})
@@ -572,6 +573,18 @@ app.all('/api/*splat', async (req, res) => {
       if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
       const r = await dbExecute('SELECT * FROM event_inquiries ORDER BY created_at DESC')
       return res.json(r.rows)
+    }
+
+    if (path === '/event-inquiries/archive-event' && method === 'PATCH') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { eventName, eventDate, archived } = req.body
+      if (!eventName) return res.status(400).json({ error: 'eventName fehlt' })
+      if (eventDate) {
+        await dbExecute('UPDATE event_inquiries SET archived = ? WHERE event_name = ? AND event_date = ?', [archived ? 1 : 0, eventName, eventDate])
+      } else {
+        await dbExecute('UPDATE event_inquiries SET archived = ? WHERE event_name = ? AND event_date IS NULL', [archived ? 1 : 0, eventName])
+      }
+      return res.json({ ok: true })
     }
 
     const inquiryStatusMatch = path.match(/^\/event-inquiries\/(\d+)\/status$/)
