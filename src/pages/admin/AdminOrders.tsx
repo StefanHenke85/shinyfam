@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send, Archive, ArchiveRestore, Filter } from 'lucide-react'
+import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send, Archive, ArchiveRestore, Filter, FileDown } from 'lucide-react'
 
 interface MailTemplate {
   id: number; name: string; type: string; subject: string; body: string
@@ -147,6 +147,38 @@ export default function AdminOrders({ token }: { token: string }) {
     setArchiving(false)
   }
 
+  function exportInquiriesCsv(rows: Inquiry[], filenameHint: string) {
+    const columns: [string, (i: Inquiry) => string][] = [
+      ['Firma', i => i.company ?? ''],
+      ['Name', i => i.name],
+      ['Straße/HausNr', i => i.street ?? ''],
+      ['PLZ/Ort', i => i.zip_city ?? ''],
+      ['E-Mail', i => i.email],
+      ['Telefon', i => i.phone ?? ''],
+      ['Gebuchte Tage', i => i.attendance_days ? (attendanceDaysLabels[i.attendance_days] || i.attendance_days) : 'Beide Tage'],
+      ['TCG', i => i.tcg ?? ''],
+      ['Standfläche', i => i.meters ?? ''],
+      ['Status', i => inquiryStatusLabels[i.status] || i.status],
+      ['Event', i => i.event_name],
+      ['Event-Datum', i => i.event_date ? new Date(i.event_date).toLocaleDateString('de-DE') : ''],
+      ['Angefragt am', i => new Date(i.created_at).toLocaleDateString('de-DE')],
+      ['Notiz', i => i.message ?? ''],
+    ]
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`
+    const lines = [
+      columns.map(([label]) => escape(label)).join(';'),
+      ...rows.map(row => columns.map(([, get]) => escape(get(row))).join(';')),
+    ]
+    const csv = '﻿' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `haendler-${filenameHint}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const eventOccurrences = useMemo(() => {
     const map = new Map<string, { eventName: string; eventDate: string | null }>()
     for (const i of inquiries) {
@@ -232,6 +264,13 @@ export default function AdminOrders({ token }: { token: string }) {
                   {showArchived ? <><ArchiveRestore size={11} /> Event wiederherstellen</> : <><Archive size={11} /> Event archivieren</>}
                 </button>
               )}
+              <button type="button" disabled={sortedInquiries.length === 0} onClick={() => {
+                const hint = eventFilter === 'all' ? 'alle' : eventFilter.split('|')[0].replace(/[^\w\-äöüÄÖÜß]+/g, '_')
+                exportInquiriesCsv(sortedInquiries, hint)
+              }}
+                className="text-xs px-2.5 py-1 rounded-full border border-theme text-secondary hover:border-accent-purple/50 transition-colors flex items-center gap-1 disabled:opacity-50">
+                <FileDown size={11} /> Als Excel exportieren
+              </button>
               <div className="w-px h-4 bg-theme mx-1" />
               <ArrowUpDown size={14} className="text-muted shrink-0" />
               {([['date_desc', 'Neueste zuerst'], ['date_asc', 'Älteste zuerst'], ['status', 'Status'], ['event', 'Event']] as [SortKey, string][]).map(([key, label]) => (
