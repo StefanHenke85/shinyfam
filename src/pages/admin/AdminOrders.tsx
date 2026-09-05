@@ -15,6 +15,7 @@ interface Inquiry {
   id: number; name: string; email: string; event_name: string; event_date: string | null
   tcg: string | null; meters: string | null; message: string | null
   attendance_days: string | null; logo_url: string | null
+  company: string | null; phone: string | null; street: string | null; zip_city: string | null
   status: string; created_at: string
 }
 
@@ -197,7 +198,7 @@ export default function AdminOrders({ token }: { token: string }) {
                           {inquiryStatusLabels[inq.status] || inq.status}
                         </span>
                         <div className="min-w-0">
-                          <p className="section-title font-medium text-sm">{inq.name}</p>
+                          <p className="section-title font-medium text-sm">{inq.company || inq.name}</p>
                           <p className="text-secondary text-xs truncate">{inq.event_name}{inq.tcg ? ` · ${inq.tcg}` : ''}</p>
                         </div>
                       </div>
@@ -209,7 +210,12 @@ export default function AdminOrders({ token }: { token: string }) {
                     {expanded === inq.id && (
                       <div className="px-4 pb-4 border-t border-theme pt-3 space-y-3">
                         <div className="grid grid-cols-2 gap-2 text-sm">
+                          {inq.company && <div><span className="text-muted text-xs">Firma</span><br />{inq.company}</div>}
+                          <div><span className="text-muted text-xs">Ansprechpartner</span><br />{inq.name}</div>
                           <div><span className="text-muted text-xs">E-Mail</span><br /><a href={`mailto:${inq.email}`} className="text-accent-purple hover:underline">{inq.email}</a></div>
+                          {inq.phone && <div><span className="text-muted text-xs">Telefon</span><br /><a href={`tel:${inq.phone}`} className="text-accent-purple hover:underline">{inq.phone}</a></div>}
+                          {inq.street && <div><span className="text-muted text-xs">Straße</span><br />{inq.street}</div>}
+                          {inq.zip_city && <div><span className="text-muted text-xs">PLZ/Ort</span><br />{inq.zip_city}</div>}
                           {inq.event_date && <div><span className="text-muted text-xs">Datum</span><br />{new Date(inq.event_date).toLocaleDateString('de-DE')}</div>}
                           {inq.tcg && <div><span className="text-muted text-xs">TCG</span><br />{inq.tcg}</div>}
                           {inq.meters && <div><span className="text-muted text-xs">Standfläche</span><br />{inq.meters}</div>}

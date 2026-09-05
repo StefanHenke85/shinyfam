@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void
 }
 
-const emptyForm = { name: '', email: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide' }
+const emptyForm = { name: '', email: '', company: '', phone: '', street: '', zipCity: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide' }
 
 export default function EventInquiryForm({ eventName, eventDate, eventEndDate, onClose }: Props) {
   const isMultiDay = !!eventEndDate && new Date(eventEndDate).toDateString() !== new Date(eventDate).toDateString()
@@ -48,6 +48,12 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, o
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3">
           <div>
+            <label className="text-secondary text-xs mb-1 block">Firmenname *</label>
+            <input required placeholder="Mustermann Cards" value={form.company}
+              onChange={e => setForm({ ...form, company: e.target.value })}
+              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+          </div>
+          <div>
             <label className="text-secondary text-xs mb-1 block">Dein Name *</label>
             <input required placeholder="Max Mustermann" value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
@@ -57,6 +63,24 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, o
             <label className="text-secondary text-xs mb-1 block">E-Mail *</label>
             <input required type="email" placeholder="max@beispiel.de" value={form.email}
               onChange={e => setForm({ ...form, email: e.target.value })}
+              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+          </div>
+          <div>
+            <label className="text-secondary text-xs mb-1 block">Telefon</label>
+            <input type="tel" placeholder="0123 4567890" value={form.phone}
+              onChange={e => setForm({ ...form, phone: e.target.value })}
+              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+          </div>
+          <div>
+            <label className="text-secondary text-xs mb-1 block">Straße / Hausnummer</label>
+            <input placeholder="Musterstraße 1" value={form.street}
+              onChange={e => setForm({ ...form, street: e.target.value })}
+              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+          </div>
+          <div>
+            <label className="text-secondary text-xs mb-1 block">PLZ / Ort</label>
+            <input placeholder="12345 Musterstadt" value={form.zipCity}
+              onChange={e => setForm({ ...form, zipCity: e.target.value })}
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>
           <div>

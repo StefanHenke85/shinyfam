@@ -23,7 +23,7 @@ function NextEventInquiry({ event }: { event: TCGEvent }) {
           Als Händler anfragen
         </button>
       ) : (
-        <EventInquiryForm eventName={event.title} eventDate={event.date} onClose={() => setOpen(false)} />
+        <EventInquiryForm eventName={event.title} eventDate={event.date} eventEndDate={event.endDate} onClose={() => setOpen(false)} />
       )}
     </div>
   )
@@ -124,11 +124,19 @@ export default function Home() {
                 <div className="event-popup-info-icon">
                   <Clock size={15} />
                 </div>
-                <span>
-                  {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                  {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
-                  {' '}Uhr
-                </span>
+                {nextEvent.schedule && nextEvent.schedule.length > 0 ? (
+                  <span className="flex flex-col gap-0.5">
+                    {nextEvent.schedule.map((day, i) => (
+                      <span key={i}>{day.label}: {day.start} – {day.end} Uhr</span>
+                    ))}
+                  </span>
+                ) : (
+                  <span>
+                    {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                    {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                    {' '}Uhr
+                  </span>
+                )}
               </div>
               <div className="event-popup-info-row loc-row">
                 <div className="event-popup-info-icon">
@@ -229,9 +237,15 @@ export default function Home() {
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock size={13} aria-hidden="true" />
-                    {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                    {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
-                    {' '}Uhr
+                    {nextEvent.schedule && nextEvent.schedule.length > 1 ? (
+                      <>{nextEvent.schedule.length} Tage</>
+                    ) : (
+                      <>
+                        {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                        {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                        {' '}Uhr
+                      </>
+                    )}
                   </span>
                   <span className="flex items-center gap-1">
                     <MapPin size={13} aria-hidden="true" />
@@ -333,10 +347,18 @@ export default function Home() {
                   </div>
                   <div className="next-event-meta-row">
                     <dt><Clock size={15} className="text-accent-purple" aria-label="Uhrzeit" /></dt>
-                    <dd className="text-secondary text-sm">
-                      {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                      {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
-                      {' '}{t('events.timeUnit')}
+                    <dd className="text-secondary text-sm flex flex-col gap-0.5">
+                      {nextEvent.schedule && nextEvent.schedule.length > 0 ? (
+                        nextEvent.schedule.map((day, i) => (
+                          <span key={i}><span className="font-medium text-primary">{day.label}:</span> {day.start} – {day.end} Uhr</span>
+                        ))
+                      ) : (
+                        <span>
+                          {new Date(nextEvent.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                          {nextEvent.endDate && <> – {new Date(nextEvent.endDate).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</>}
+                          {' '}{t('events.timeUnit')}
+                        </span>
+                      )}
                     </dd>
                   </div>
                   <div className="next-event-meta-row">
