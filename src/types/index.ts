@@ -28,6 +28,7 @@ export interface TCGEvent {
   entryFee?: number | null
   schedule?: EventScheduleDay[]
   maxVendors?: number | null
+  pricePerMeterDay?: number | null
 }
 
 export interface ArtworkPiece {

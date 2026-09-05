@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send, Archive, ArchiveRestore, Filter, FileDown } from 'lucide-react'
+import { Package, ChevronDown, ChevronUp, Users, ArrowUpDown, Palette, Trash2, CheckCheck, Send, Archive, ArchiveRestore, Filter, FileDown, Receipt } from 'lucide-react'
 
 interface MailTemplate {
   id: number; name: string; type: string; subject: string; body: string
@@ -62,6 +62,8 @@ export default function AdminOrders({ token }: { token: string }) {
   const [templates, setTemplates] = useState<MailTemplate[]>([])
   const [sendingMail, setSendingMail] = useState<number | null>(null)
   const [mailMsg, setMailMsg] = useState<Record<number, string>>({})
+  const [invoicing, setInvoicing] = useState<number | 'event' | null>(null)
+  const [invoiceMsg, setInvoiceMsg] = useState<Record<number | string, string>>({})
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
   async function load() {
@@ -136,6 +138,58 @@ export default function AdminOrders({ token }: { token: string }) {
     await fetch(`/api/event-inquiries/${inq.id}/note`, { method: 'PATCH', headers, body: JSON.stringify({ note: note || null }) })
     setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, message: note || null } : i))
     setNoteSaving(null)
+  }
+
+  function downloadPdf(base64: string, filename: string) {
+    const bytes = atob(base64)
+    const arr = new Uint8Array(bytes.length)
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+    const blob = new Blob([arr], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function createInvoice(inq: Inquiry, action: 'download' | 'send') {
+    setInvoicing(inq.id)
+    try {
+      const res = await fetch('/api/invoices/generate', { method: 'POST', headers, body: JSON.stringify({ inquiry_id: inq.id }) })
+      const d = await res.json()
+      if (!res.ok) { setInvoiceMsg(prev => ({ ...prev, [inq.id]: '✗ ' + (d.error || 'Fehler') })); return }
+      if (action === 'download') {
+        downloadPdf(d.pdf, d.filename)
+        setInvoiceMsg(prev => ({ ...prev, [inq.id]: `✓ ${d.invoiceNumber} erstellt` }))
+      } else {
+        const sendRes = await fetch('/api/invoices/send', {
+          method: 'POST', headers,
+          body: JSON.stringify({ inquiry_id: inq.id, invoiceNumber: d.invoiceNumber, pdfBase64: d.pdf, filename: d.filename }),
+        })
+        const sendData = await sendRes.json()
+        setInvoiceMsg(prev => ({ ...prev, [inq.id]: sendRes.ok ? `✓ ${d.invoiceNumber} gesendet` : '✗ ' + (sendData.error || 'Mailfehler') }))
+      }
+    } finally {
+      setInvoicing(null)
+      setTimeout(() => setInvoiceMsg(prev => { const n = { ...prev }; delete n[inq.id]; return n }), 4000)
+    }
+  }
+
+  async function createEventInvoices(eventName: string, eventDate: string | null) {
+    const label = eventDate ? `${eventName} (${new Date(eventDate).toLocaleDateString('de-DE')})` : eventName
+    if (!confirm(`Sammelrechnungen für alle aktiven Anfragen von „${label}" erstellen? Jede Rechnung wird als separates PDF heruntergeladen.`)) return
+    setInvoicing('event')
+    try {
+      const res = await fetch('/api/invoices/generate-event', { method: 'POST', headers, body: JSON.stringify({ eventName, eventDate }) })
+      const d = await res.json()
+      if (!res.ok) { setInvoiceMsg(prev => ({ ...prev, event: '✗ ' + (d.error || 'Fehler') })); return }
+      for (const inv of d.invoices) downloadPdf(inv.pdf, inv.filename)
+      setInvoiceMsg(prev => ({ ...prev, event: `✓ ${d.count} Rechnungen erstellt` }))
+    } finally {
+      setInvoicing(null)
+      setTimeout(() => setInvoiceMsg(prev => { const n = { ...prev }; delete n.event; return n }), 5000)
+    }
   }
 
   async function archiveEvent(eventName: string, eventDate: string | null, archived: boolean) {
@@ -271,6 +325,20 @@ export default function AdminOrders({ token }: { token: string }) {
                 className="text-xs px-2.5 py-1 rounded-full border border-theme text-secondary hover:border-accent-purple/50 transition-colors flex items-center gap-1 disabled:opacity-50">
                 <FileDown size={11} /> Als Excel exportieren
               </button>
+              {eventFilter !== 'all' && !showArchived && (
+                <button type="button" disabled={invoicing === 'event'} onClick={() => {
+                  const [name, date] = eventFilter.split('|')
+                  createEventInvoices(name, date || null)
+                }}
+                  className="text-xs px-2.5 py-1 rounded-full border border-theme text-secondary hover:border-accent-purple/50 transition-colors flex items-center gap-1 disabled:opacity-50">
+                  <Receipt size={11} /> {invoicing === 'event' ? 'Erstelle Rechnungen…' : 'Sammelrechnungen erstellen'}
+                </button>
+              )}
+              {invoiceMsg.event && (
+                <span className={`text-xs px-2 py-1 rounded ${invoiceMsg.event.startsWith('✓') ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'}`}>
+                  {invoiceMsg.event}
+                </span>
+              )}
               <div className="w-px h-4 bg-theme mx-1" />
               <ArrowUpDown size={14} className="text-muted shrink-0" />
               {([['date_desc', 'Neueste zuerst'], ['date_asc', 'Älteste zuerst'], ['status', 'Status'], ['event', 'Event']] as [SortKey, string][]).map(([key, label]) => (
@@ -362,6 +430,28 @@ export default function AdminOrders({ token }: { token: string }) {
                             )}
                           </div>
                         )}
+                        <div className="pt-1">
+                          <p className="text-muted text-xs mb-1.5 flex items-center gap-1"><Receipt size={11} /> Rechnung:</p>
+                          <div className="flex gap-2 flex-wrap">
+                            <button type="button" disabled={invoicing === inq.id}
+                              onClick={() => createInvoice(inq, 'download')}
+                              className="text-xs px-3 py-1 rounded-full border border-accent-purple/40 text-accent-purple hover:bg-accent-purple/10 transition-colors flex items-center gap-1 disabled:opacity-50">
+                              <FileDown size={10} />
+                              {invoicing === inq.id ? 'Erstelle…' : 'PDF erstellen'}
+                            </button>
+                            <button type="button" disabled={invoicing === inq.id}
+                              onClick={() => createInvoice(inq, 'send')}
+                              className="text-xs px-3 py-1 rounded-full border border-accent-purple/40 text-accent-purple hover:bg-accent-purple/10 transition-colors flex items-center gap-1 disabled:opacity-50">
+                              <Send size={10} />
+                              {invoicing === inq.id ? 'Sende…' : 'Per Mail senden'}
+                            </button>
+                          </div>
+                          {invoiceMsg[inq.id] && (
+                            <p className={`text-xs mt-1.5 px-2 py-1 rounded ${invoiceMsg[inq.id].startsWith('✓') ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'}`}>
+                              {invoiceMsg[inq.id]}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-2 flex-wrap pt-1 items-center">
                           {Object.entries(inquiryStatusLabels).map(([s, label]) => (
                             <button key={s} type="button" onClick={() => updateInquiryStatus(inq.id, s)}

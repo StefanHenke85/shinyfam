@@ -50,6 +50,127 @@ async function dbExecute(sql, args = []) {
   return { rows }
 }
 
+async function getInvoiceSellerInfo() {
+  const r = await dbExecute('SELECT key, value FROM settings')
+  const s = {}
+  for (const row of r.rows) s[row.key] = row.value
+  return {
+    name: s.invoice_seller_name || 'ShinyFam · Heike Karg',
+    address: s.invoice_seller_address || 'Bönninghardter Straße 72, 46519 Alpen',
+    taxNumber: s.invoice_seller_tax_number || '',
+  }
+}
+
+async function nextInvoiceNumber() {
+  const year = new Date().getFullYear()
+  const r = await dbExecute(
+    "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY id DESC LIMIT 1",
+    [`RE-${year}-%`]
+  )
+  const last = r.rows[0]?.invoice_number
+  const lastSeq = last ? parseInt(last.split('-')[2], 10) : 0
+  const seq = (Number.isFinite(lastSeq) ? lastSeq : 0) + 1
+  return `RE-${year}-${String(seq).padStart(4, '0')}`
+}
+
+function computeInvoiceItems(inquiry, event) {
+  const pricePerMeterDay = event?.price_per_meter_day != null ? Number(event.price_per_meter_day) : null
+  const meters = inquiry.meters_num != null ? Number(inquiry.meters_num) : null
+  const days = inquiry.days_count != null ? Number(inquiry.days_count) : 1
+  const items = []
+  if (pricePerMeterDay != null && meters != null) {
+    items.push({
+      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''} (${meters} m × ${days} Tag${days > 1 ? 'e' : ''})`,
+      quantity: meters * days,
+      unit: 'm/Tag',
+      unitPrice: pricePerMeterDay,
+      total: Math.round(pricePerMeterDay * meters * days * 100) / 100,
+    })
+  } else {
+    items.push({
+      description: `Standgebühr${inquiry.event_name ? ' – ' + inquiry.event_name : ''}${inquiry.meters ? ' (' + inquiry.meters + ')' : ''}`,
+      quantity: 1,
+      unit: '',
+      unitPrice: null,
+      total: null,
+    })
+  }
+  return items
+}
+
+async function buildInvoicePdf({ invoiceNumber, invoiceDate, seller, recipient, items, total }) {
+  const { default: PDFDocument } = await import('pdfkit')
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 60, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    doc.rect(0, 0, doc.page.width, 8).fill('#7c3aed')
+    doc.moveDown(0.5)
+    doc.fontSize(22).fillColor('#7c3aed').font('Helvetica-Bold').text('ShinyFam', 60, 30)
+    doc.fontSize(10).fillColor('#888').font('Helvetica').text('TCG Community am Niederrhein · info@shinyfam.de · shinyfam.de', 60, 56)
+    doc.moveTo(60, 76).lineTo(doc.page.width - 60, 76).strokeColor('#e0d6ff').lineWidth(1).stroke()
+
+    doc.fontSize(20).fillColor('#1a1a2e').font('Helvetica-Bold').text('Rechnung', 60, 100)
+    doc.fontSize(10).fillColor('#4a5070').font('Helvetica')
+    doc.text(`Rechnungsnummer: ${invoiceNumber}`, 60, 128)
+    doc.text(`Rechnungsdatum: ${invoiceDate}`, 60, 142)
+
+    doc.fontSize(9).fillColor('#8a90a8').text('VON', 60, 170)
+    doc.fontSize(10).fillColor('#1a1a2e').font('Helvetica-Bold').text(seller.name, 60, 184)
+    doc.fontSize(10).fillColor('#4a5070').font('Helvetica').text(seller.address, 60, 198)
+    if (seller.taxNumber) doc.text(`Steuernummer: ${seller.taxNumber}`, 60, 212)
+
+    const recipientY = 170
+    doc.fontSize(9).fillColor('#8a90a8').text('AN', 320, recipientY)
+    doc.fontSize(10).fillColor('#1a1a2e').font('Helvetica-Bold').text(recipient.company || recipient.name, 320, recipientY + 14)
+    doc.fontSize(10).fillColor('#4a5070').font('Helvetica')
+    let ry = recipientY + 28
+    if (recipient.company) { doc.text(recipient.name, 320, ry); ry += 14 }
+    if (recipient.street) { doc.text(recipient.street, 320, ry); ry += 14 }
+    if (recipient.zipCity) { doc.text(recipient.zipCity, 320, ry); ry += 14 }
+
+    let y = 270
+    doc.moveTo(60, y).lineTo(doc.page.width - 60, y).strokeColor('#e0d6ff').lineWidth(1).stroke()
+    y += 12
+    doc.fontSize(9).fillColor('#8a90a8').font('Helvetica-Bold')
+    doc.text('Beschreibung', 60, y, { width: 280 })
+    doc.text('Menge', 340, y, { width: 60, align: 'right' })
+    doc.text('Einzelpreis', 400, y, { width: 70, align: 'right' })
+    doc.text('Gesamt', 475, y, { width: 75, align: 'right' })
+    y += 16
+    doc.moveTo(60, y).lineTo(doc.page.width - 60, y).strokeColor('#e0d6ff').lineWidth(1).stroke()
+    y += 10
+
+    doc.font('Helvetica').fillColor('#1a1a2e')
+    for (const item of items) {
+      const rowHeight = 18
+      doc.fontSize(10).text(item.description, 60, y, { width: 280 })
+      doc.text(item.quantity != null ? `${item.quantity} ${item.unit || ''}`.trim() : '–', 340, y, { width: 60, align: 'right' })
+      doc.text(item.unitPrice != null ? `${item.unitPrice.toFixed(2)} €` : '–', 400, y, { width: 70, align: 'right' })
+      doc.text(item.total != null ? `${item.total.toFixed(2)} €` : 'nach Absprache', 475, y, { width: 75, align: 'right' })
+      y += rowHeight
+    }
+    y += 6
+    doc.moveTo(340, y).lineTo(doc.page.width - 60, y).strokeColor('#e0d6ff').lineWidth(1).stroke()
+    y += 10
+    doc.fontSize(11).font('Helvetica-Bold')
+    doc.text('Gesamtbetrag', 340, y, { width: 100, align: 'left' })
+    doc.text(total != null ? `${total.toFixed(2)} €` : 'nach Absprache', 440, y, { width: 110, align: 'right' })
+    y += 30
+
+    doc.fontSize(9).fillColor('#4a5070').font('Helvetica')
+    doc.text('Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.', 60, y, { width: doc.page.width - 120 })
+    y += 30
+
+    doc.fontSize(9).fillColor('#aaa').text(`${seller.name} · ${seller.address} · info@shinyfam.de`, 60, doc.page.height - 80, { align: 'center', width: doc.page.width - 120 })
+
+    doc.end()
+  })
+}
+
 async function initDb() {
   await dbExecute(`CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, title TEXT NOT NULL, date TEXT NOT NULL, end_date TEXT, location TEXT NOT NULL, address TEXT NOT NULL, city TEXT NOT NULL, description TEXT NOT NULL, youtube_video_id TEXT, ticket_url TEXT, image_url TEXT, tags TEXT NOT NULL DEFAULT '[]', partners TEXT DEFAULT '[]', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN partners TEXT DEFAULT '[]'`).catch(() => {})
@@ -57,6 +178,7 @@ async function initDb() {
   await dbExecute(`ALTER TABLE events ADD COLUMN entry_fee REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN schedule TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN max_vendors INTEGER DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE events ADD COLUMN price_per_meter_day REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, motif TEXT NOT NULL, size TEXT, message TEXT, status TEXT DEFAULT 'new', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, price REAL NOT NULL, stock INTEGER DEFAULT 1, image_url TEXT, is_featured INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, tags TEXT DEFAULT '[]', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS artworks (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, image_url TEXT, tags TEXT DEFAULT '[]', sold INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
@@ -74,6 +196,9 @@ async function initDb() {
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN street TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN zip_city TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN archived INTEGER DEFAULT 0`).catch(() => {})
+  await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN meters_num REAL DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN days_count REAL DEFAULT NULL`).catch(() => {})
+  await dbExecute(`CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, invoice_date TEXT NOT NULL, inquiry_id INTEGER, event_name TEXT NOT NULL, event_date TEXT, recipient_company TEXT, recipient_name TEXT NOT NULL, recipient_street TEXT, recipient_zip_city TEXT, items TEXT NOT NULL, total REAL, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS analytics (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, referrer TEXT, ua TEXT, country TEXT, ts TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_ts ON analytics(ts)`).catch(() => {})
   await dbExecute(`CREATE INDEX IF NOT EXISTS analytics_path ON analytics(path)`).catch(() => {})
@@ -240,13 +365,13 @@ app.all('/api/*splat', async (req, res) => {
         const adminMode = await isAdmin(req.headers.authorization)
         const sql = adminMode ? 'SELECT * FROM events ORDER BY date ASC' : "SELECT * FROM events WHERE is_active = 1 OR is_active = '1' ORDER BY date ASC"
         const r = await dbExecute(sql)
-        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null })))
+        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null, pricePerMeterDay: row.price_per_meter_day != null ? Number(row.price_per_meter_day) : null })))
       }
       if (method === 'POST') {
         if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
-        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors } = req.body
+        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay } = req.body
         if (!id || !title || !date) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
-        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null])
+        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors,price_per_meter_day) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null])
         return res.status(201).json({ ok: true })
       }
     }
@@ -268,8 +393,8 @@ app.all('/api/*splat', async (req, res) => {
         return res.json({ ok: true })
       }
       if (method === 'PATCH') {
-        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors } = req.body
-        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, id])
+        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay } = req.body
+        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=?,price_per_meter_day=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, id])
         return res.json({ ok: true })
       }
     }
@@ -611,11 +736,13 @@ app.all('/api/*splat', async (req, res) => {
     }
 
     if (path === '/event-inquiry' && method === 'POST') {
-      const { name, email, eventName, date, tcg, meters, message, logoUrl, attendanceDays, company, phone, street, zipCity } = req.body
+      const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity } = req.body
       if (!name || !email || !eventName || !company) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+      const resolvedMetersNum = metersNum != null ? Number(metersNum) : (meters ? parseFloat(String(meters).replace(',', '.')) || null : null)
+      const daysCount = attendanceDays === 'beide' ? 2 : 1
       // Immer in DB speichern — unabhängig vom Mailserver
-      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company, phone || null, street || null, zipCity || null]).catch(() => {})
+      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount]).catch(() => {})
       // Logo hochgeladen → direkt als Händler eintragen (nur wenn noch nicht vorhanden)
       if (logoUrl) {
         const existing = await dbExecute('SELECT id FROM brands WHERE name = ?', [company]).catch(() => ({ rows: [] }))
@@ -908,6 +1035,124 @@ app.all('/api/*splat', async (req, res) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'api-key': process.env.BREVO_API_KEY },
         body: JSON.stringify(mailBody),
+      })
+      if (!brevoRes.ok) {
+        const err = await brevoRes.json().catch(() => ({}))
+        return res.status(500).json({ error: err.message || 'Mail-Versand fehlgeschlagen' })
+      }
+      return res.json({ ok: true })
+    }
+
+    // Rechnungsstammdaten (Kleinunternehmer nach § 19 UStG)
+    if (path === '/invoices/seller-info') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      if (method === 'GET') return res.json(await getInvoiceSellerInfo())
+      if (method === 'POST') {
+        const { name, address, taxNumber } = req.body
+        await dbExecute('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['invoice_seller_name', name ?? ''])
+        await dbExecute('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['invoice_seller_address', address ?? ''])
+        await dbExecute('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['invoice_seller_tax_number', taxNumber ?? ''])
+        return res.json({ ok: true })
+      }
+    }
+
+    if (path === '/invoices' && method === 'GET') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const r = await dbExecute('SELECT * FROM invoices ORDER BY id DESC')
+      return res.json(r.rows.map(row => ({ ...row, items: JSON.parse(row.items || '[]') })))
+    }
+
+    // Einzelrechnung für eine Händler-Anfrage erstellen (PDF als Base64 zurückgeben)
+    if (path === '/invoices/generate' && method === 'POST') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { inquiry_id } = req.body
+      if (!inquiry_id) return res.status(400).json({ error: 'inquiry_id fehlt' })
+      const inqRes = await dbExecute('SELECT * FROM event_inquiries WHERE id = ?', [inquiry_id])
+      const inq = inqRes.rows[0]
+      if (!inq) return res.status(404).json({ error: 'Anfrage nicht gefunden' })
+      const eventRes = await dbExecute('SELECT * FROM events WHERE title = ? LIMIT 1', [inq.event_name])
+      const event = eventRes.rows[0] || null
+
+      const items = computeInvoiceItems(inq, event)
+      const total = items.every(it => it.total != null) ? Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100 : null
+      const seller = await getInvoiceSellerInfo()
+      const invoiceNumber = await nextInvoiceNumber()
+      const invoiceDate = new Date().toLocaleDateString('de-DE')
+      const recipient = { company: inq.company, name: inq.name, street: inq.street, zipCity: inq.zip_city }
+
+      const pdfBuffer = await buildInvoicePdf({ invoiceNumber, invoiceDate, seller, recipient, items, total })
+
+      await dbExecute(
+        'INSERT INTO invoices (invoice_number,invoice_date,inquiry_id,event_name,event_date,recipient_company,recipient_name,recipient_street,recipient_zip_city,items,total) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [invoiceNumber, invoiceDate, inquiry_id, inq.event_name, inq.event_date, inq.company, inq.name, inq.street, inq.zip_city, JSON.stringify(items), total]
+      )
+
+      return res.json({
+        ok: true,
+        invoiceNumber,
+        pdf: pdfBuffer.toString('base64'),
+        filename: `Rechnung_${invoiceNumber}.pdf`,
+      })
+    }
+
+    // Sammel-Rechnungslauf für alle (aktiven) Anfragen eines Events
+    if (path === '/invoices/generate-event' && method === 'POST') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { eventName, eventDate } = req.body
+      if (!eventName) return res.status(400).json({ error: 'eventName fehlt' })
+      const inqRes = eventDate
+        ? await dbExecute("SELECT * FROM event_inquiries WHERE event_name = ? AND event_date = ? AND status != 'declined'", [eventName, eventDate])
+        : await dbExecute("SELECT * FROM event_inquiries WHERE event_name = ? AND event_date IS NULL AND status != 'declined'", [eventName])
+      const inquiries = inqRes.rows
+      if (inquiries.length === 0) return res.status(404).json({ error: 'Keine Anfragen für dieses Event gefunden' })
+
+      const eventRes = await dbExecute('SELECT * FROM events WHERE title = ? LIMIT 1', [eventName])
+      const event = eventRes.rows[0] || null
+      const seller = await getInvoiceSellerInfo()
+      const invoiceDate = new Date().toLocaleDateString('de-DE')
+
+      const results = []
+      for (const inq of inquiries) {
+        const items = computeInvoiceItems(inq, event)
+        const total = items.every(it => it.total != null) ? Math.round(items.reduce((s, it) => s + it.total, 0) * 100) / 100 : null
+        const invoiceNumber = await nextInvoiceNumber()
+        const recipient = { company: inq.company, name: inq.name, street: inq.street, zipCity: inq.zip_city }
+        const pdfBuffer = await buildInvoicePdf({ invoiceNumber, invoiceDate, seller, recipient, items, total })
+        await dbExecute(
+          'INSERT INTO invoices (invoice_number,invoice_date,inquiry_id,event_name,event_date,recipient_company,recipient_name,recipient_street,recipient_zip_city,items,total) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+          [invoiceNumber, invoiceDate, inq.id, inq.event_name, inq.event_date, inq.company, inq.name, inq.street, inq.zip_city, JSON.stringify(items), total]
+        )
+        results.push({
+          inquiryId: inq.id,
+          company: inq.company,
+          invoiceNumber,
+          pdf: pdfBuffer.toString('base64'),
+          filename: `Rechnung_${invoiceNumber}_${(inq.company || inq.name).replace(/[^\w\-äöüÄÖÜß]+/g, '_')}.pdf`,
+        })
+      }
+      return res.json({ ok: true, count: results.length, invoices: results })
+    }
+
+    // Rechnung per Mail an den Händler verschicken
+    if (path === '/invoices/send' && method === 'POST') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { inquiry_id, invoiceNumber, pdfBase64, filename } = req.body
+      if (!inquiry_id || !pdfBase64) return res.status(400).json({ error: 'Felder fehlen' })
+      const inqRes = await dbExecute('SELECT * FROM event_inquiries WHERE id = ?', [inquiry_id])
+      const inq = inqRes.rows[0]
+      if (!inq) return res.status(404).json({ error: 'Anfrage nicht gefunden' })
+      if (!process.env.BREVO_API_KEY) return res.status(500).json({ error: 'Mailversand nicht konfiguriert' })
+
+      const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8', 'api-key': process.env.BREVO_API_KEY },
+        body: JSON.stringify({
+          sender: { name: 'ShinyFam', email: 'info@shinyfam.de' },
+          to: [{ email: inq.email, name: inq.name }],
+          subject: `Rechnung ${invoiceNumber || ''} – ${inq.event_name}`,
+          htmlContent: `<html><head><meta charset="utf-8"></head><body><p>Hallo ${inq.name},</p><p>anbei die Rechnung für eure Teilnahme bei ${inq.event_name}.</p><p>Viele Grüße<br>Das ShinyFam-Team<br>info@shinyfam.de</p></body></html>`,
+          attachment: [{ name: filename || 'Rechnung.pdf', content: pdfBase64 }],
+        }),
       })
       if (!brevoRes.ok) {
         const err = await brevoRes.json().catch(() => ({}))

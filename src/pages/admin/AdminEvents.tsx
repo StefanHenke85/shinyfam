@@ -10,13 +10,13 @@ interface FormState {
   address: string; city: string; description: string; tags: string[]
   youtubeVideoId: string; ticketUrl: string; imageUrl: string
   partners: EventPartner[]; isActive: boolean; entryFee: string
-  schedule: EventScheduleDay[]; maxVendors: string
+  schedule: EventScheduleDay[]; maxVendors: string; pricePerMeterDay: string
 }
 
 const EMPTY: FormState = {
   title: '', date: '', endDate: '', location: '', address: '', city: '',
   description: '', tags: [], youtubeVideoId: '', ticketUrl: '', imageUrl: '', partners: [],
-  isActive: true, entryFee: '', schedule: [], maxVendors: '',
+  isActive: true, entryFee: '', schedule: [], maxVendors: '', pricePerMeterDay: '',
 }
 
 export default function AdminEvents({ token }: { token: string }) {
@@ -173,6 +173,7 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
       entryFee: ev.entryFee != null ? String(ev.entryFee) : (r.entry_fee != null ? String(r.entry_fee) : ''),
       schedule: ev.schedule || [],
       maxVendors: ev.maxVendors != null ? String(ev.maxVendors) : (r.max_vendors != null ? String(r.max_vendors) : ''),
+      pricePerMeterDay: ev.pricePerMeterDay != null ? String(ev.pricePerMeterDay) : (r.price_per_meter_day != null ? String(r.price_per_meter_day) : ''),
     })
     setTagsInput((ev.tags || []).join(', '))
     setEditId(ev.id)
@@ -193,7 +194,7 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
     const tags = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
     const partners = form.partners.filter(p => p.name.trim())
     try {
-      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null, schedule: form.schedule.length > 0 ? form.schedule : null, maxVendors: form.maxVendors !== '' ? parseInt(form.maxVendors) : null }
+      const body = { ...form, tags, partners, imageUrl: form.imageUrl || null, endDate: form.endDate || null, entryFee: form.entryFee !== '' ? parseFloat(form.entryFee) : null, schedule: form.schedule.length > 0 ? form.schedule : null, maxVendors: form.maxVendors !== '' ? parseInt(form.maxVendors) : null, pricePerMeterDay: form.pricePerMeterDay !== '' ? parseFloat(form.pricePerMeterDay) : null }
       const res = editId
         ? await fetch(`/api/events/${editId}`, { method: 'PATCH', headers, body: JSON.stringify(body) })
         : await fetch('/api/events', { method: 'POST', headers, body: JSON.stringify({ id: `evt-${Date.now()}`, ...body }) })
@@ -261,6 +262,13 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
             <input id="evt-max-vendors" type="number" min="1" step="1" value={form.maxVendors}
               onChange={e => setForm({ ...form, maxVendors: e.target.value })}
               placeholder="z.B. 20" className="input-field" />
+          </div>
+
+          <div>
+            <label htmlFor="evt-price-per-meter" className="admin-label">Standgebühr (€ pro Meter pro Tag, für Rechnungen)</label>
+            <input id="evt-price-per-meter" type="number" min="0" step="0.50" value={form.pricePerMeterDay}
+              onChange={e => setForm({ ...form, pricePerMeterDay: e.target.value })}
+              placeholder="z.B. 12.50" className="input-field" />
           </div>
 
           {/* Mehrtägiger Zeitplan */}
