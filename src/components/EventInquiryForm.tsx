@@ -75,14 +75,14 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, p
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>
           <div>
-            <label className="text-secondary text-xs mb-1 block">Straße / Hausnummer</label>
-            <input placeholder="Musterstraße 1" value={form.street}
+            <label className="text-secondary text-xs mb-1 block">Straße / Hausnummer *</label>
+            <input required placeholder="Musterstraße 1" value={form.street}
               onChange={e => setForm({ ...form, street: e.target.value })}
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>
           <div>
-            <label className="text-secondary text-xs mb-1 block">PLZ / Ort</label>
-            <input placeholder="12345 Musterstadt" value={form.zipCity}
+            <label className="text-secondary text-xs mb-1 block">PLZ / Ort *</label>
+            <input required placeholder="12345 Musterstadt" value={form.zipCity}
               onChange={e => setForm({ ...form, zipCity: e.target.value })}
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>

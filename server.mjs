@@ -753,7 +753,7 @@ app.all('/api/*splat', async (req, res) => {
 
     if (path === '/event-inquiry' && method === 'POST') {
       const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity, priceTier } = req.body
-      if (!name || !email || !eventName || !company) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+      if (!name || !email || !eventName || !company || !street || !zipCity) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
       const resolvedMetersNum = metersNum != null ? Number(metersNum) : (meters ? parseFloat(String(meters).replace(',', '.')) || null : null)
       const daysCount = attendanceDays === 'beide' ? 2 : 1
       // Immer in DB speichern — unabhängig vom Mailserver
