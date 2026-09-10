@@ -16,6 +16,7 @@ interface Inquiry {
   tcg: string | null; meters: string | null; message: string | null
   attendance_days: string | null; logo_url: string | null
   company: string | null; phone: string | null; street: string | null; zip_city: string | null
+  customer_type: string | null
   status: string; created_at: string; archived: number | null
 }
 
@@ -231,6 +232,7 @@ export default function AdminOrders({ token }: { token: string }) {
 
   function exportInquiriesCsv(rows: Inquiry[], filenameHint: string) {
     const columns: [string, (i: Inquiry) => string][] = [
+      ['Art', i => i.customer_type === 'privat' ? 'Privat' : 'Gewerblich'],
       ['Firma', i => i.company ?? ''],
       ['Name', i => i.name],
       ['Straße/HausNr', i => i.street ?? ''],
@@ -413,6 +415,7 @@ export default function AdminOrders({ token }: { token: string }) {
                     {expanded === inq.id && (
                       <div className="px-4 pb-4 border-t border-theme pt-3 space-y-3">
                         <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div><span className="text-muted text-xs">Art</span><br />{inq.customer_type === 'privat' ? 'Privat' : 'Gewerblich'}</div>
                           {inq.company && <div><span className="text-muted text-xs">Firma</span><br />{inq.company}</div>}
                           <div><span className="text-muted text-xs">Ansprechpartner</span><br />{inq.name}</div>
                           <div><span className="text-muted text-xs">E-Mail</span><br /><a href={`mailto:${inq.email}`} className="text-accent-purple hover:underline">{inq.email}</a></div>

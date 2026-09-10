@@ -265,14 +265,14 @@ export default function Home() {
       <section className="max-w-6xl mx-auto px-4 py-8">
         <div className="rounded-2xl border border-accent-purple/30 bg-accent-purple/5 p-6">
           <div className="flex flex-col md:flex-row items-start gap-6">
-            <img src="/TradeTime.jpeg" alt="Trade Time – Zweiter Dienstag im Monat" className="w-full md:w-56 rounded-xl object-cover shadow-lg flex-shrink-0" />
+            <img src="/TradeTime.jpeg" alt="Trade Time – Erster Dienstag im Monat" className="w-full md:w-56 rounded-xl object-cover shadow-lg flex-shrink-0" />
             <div className="flex-1">
               <h2 className="font-display text-xl font-black text-primary mb-1">TCG Trade Time</h2>
               <p className="text-secondary text-sm mb-3">Tauscht, checkt und chattet mit uns! Bringt eure Binder mit und trefft andere Sammler aus der Region.</p>
               <div className="flex flex-col gap-2 text-sm">
                 <div className="flex items-center gap-1.5 text-secondary">
                   <CalendarDays size={14} className="text-accent-purple flex-shrink-0" />
-                  <span><strong className="text-primary">Jeden zweiten Dienstag im Monat</strong></span>
+                  <span><strong className="text-primary">Jeden ersten Dienstag im Monat</strong></span>
                 </div>
                 <div className="flex items-center gap-1.5 text-secondary">
                   <Clock size={14} className="text-accent-purple flex-shrink-0" />
@@ -288,11 +288,10 @@ export default function Home() {
                 Nächster Termin: {(() => {
                   const now = new Date()
                   const d = new Date(now.getFullYear(), now.getMonth(), 1)
-                  let count = 0
-                  while (count < 2) { if (d.getDay() === 2) count++; if (count < 2) d.setDate(d.getDate() + 1) }
+                  while (d.getDay() !== 2) d.setDate(d.getDate() + 1)
                   if (d <= now) {
-                    d.setMonth(d.getMonth() + 1); d.setDate(1); count = 0
-                    while (count < 2) { if (d.getDay() === 2) count++; if (count < 2) d.setDate(d.getDate() + 1) }
+                    d.setMonth(d.getMonth() + 1); d.setDate(1)
+                    while (d.getDay() !== 2) d.setDate(d.getDate() + 1)
                   }
                   return d.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
                 })()}

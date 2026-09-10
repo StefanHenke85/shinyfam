@@ -213,6 +213,7 @@ async function initDb() {
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN meters_num REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN days_count REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN price_tier TEXT DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE event_inquiries ADD COLUMN customer_type TEXT DEFAULT 'gewerblich'`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, invoice_date TEXT NOT NULL, inquiry_id INTEGER, event_name TEXT NOT NULL, event_date TEXT, recipient_company TEXT, recipient_name TEXT NOT NULL, recipient_street TEXT, recipient_zip_city TEXT, items TEXT NOT NULL, total REAL, status TEXT DEFAULT 'open', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT 'open'`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS analytics (id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT NOT NULL, referrer TEXT, ua TEXT, country TEXT, ts TEXT DEFAULT (datetime('now')))`).catch(() => {})
@@ -752,13 +753,14 @@ app.all('/api/*splat', async (req, res) => {
     }
 
     if (path === '/event-inquiry' && method === 'POST') {
-      const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity, priceTier } = req.body
-      if (!name || !email || !eventName || !company || !street || !zipCity) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+      const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity, priceTier, customerType } = req.body
+      const isCommercial = customerType !== 'privat'
+      if (!name || !email || !eventName || !street || !zipCity || (isCommercial && !company)) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
       const resolvedMetersNum = metersNum != null ? Number(metersNum) : (meters ? parseFloat(String(meters).replace(',', '.')) || null : null)
       const daysCount = attendanceDays === 'beide' ? 2 : 1
       // Immer in DB speichern — unabhängig vom Mailserver
-      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,price_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount, priceTier || null]).catch(() => {})
+      await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,price_tier,customer_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company || null, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount, priceTier || null, isCommercial ? 'gewerblich' : 'privat']).catch(() => {})
       // Logo hochgeladen → direkt als Händler eintragen (nur wenn noch nicht vorhanden)
       if (logoUrl) {
         const existing = await dbExecute('SELECT id FROM brands WHERE name = ?', [company]).catch(() => ({ rows: [] }))
@@ -772,7 +774,8 @@ app.all('/api/*splat', async (req, res) => {
       const dateFormatted = date ? new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : null
       const subject = `Händler-Anfrage: ${eventName}${dateFormatted ? ' – ' + dateFormatted : ''}${attendanceLabel ? ' (' + attendanceLabel + ')' : ''}`
       const details = [
-        `Firma: ${company}`,
+        `Art: ${isCommercial ? 'Gewerblich' : 'Privat'}`,
+        isCommercial ? `Firma: ${company}` : null,
         `Ansprechpartner: ${name}`,
         `E-Mail: ${email}`,
         phone ? `Telefon: ${phone}` : null,
@@ -809,7 +812,7 @@ app.all('/api/*splat', async (req, res) => {
         }).catch(() => {})
       }
       // Händler als Kontakt speichern
-      await dbExecute('INSERT OR IGNORE INTO contacts (name,email,phone,tags,subscribed,source) VALUES (?,?,?,?,1,?)', [`${company} (${name})`, email, phone || null, JSON.stringify(['Händler']), 'event-inquiry']).catch(() => {})
+      await dbExecute('INSERT OR IGNORE INTO contacts (name,email,phone,tags,subscribed,source) VALUES (?,?,?,?,1,?)', [isCommercial ? `${company} (${name})` : name, email, phone || null, JSON.stringify(['Händler']), 'event-inquiry']).catch(() => {})
       return res.json({ ok: true })
     }
 
