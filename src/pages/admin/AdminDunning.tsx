@@ -47,7 +47,8 @@ export default function AdminDunning({ token }: { token: string }) {
   const [recipients, setRecipients] = useState<Recipient[]>([])
   const [loading, setLoading] = useState(false)
   const [eventFilter, setEventFilter] = useState('')
-  const [onlyOpen, setOnlyOpen] = useState(true)
+  const [onlyOpen, setOnlyOpen] = useState(false)
+  const [nameSearch, setNameSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
@@ -64,10 +65,7 @@ export default function AdminDunning({ token }: { token: string }) {
       const data = await r.json()
       if (Array.isArray(data)) {
         setRecipients(data)
-        if (!eventFilter) {
-          const grav = data.find((x: Recipient) => /grav/i.test(x.event_name))
-          if (grav) setEventFilter(grav.event_name)
-        }
+        if (!eventFilter && data.some((x: Recipient) => /grav/i.test(x.event_name))) setEventFilter('grav')
       }
     } finally {
       setLoading(false)
@@ -86,8 +84,11 @@ export default function AdminDunning({ token }: { token: string }) {
   useEffect(() => { loadRecipients(); loadTemplate() }, [])
 
   const events = useMemo(() => [...new Set(recipients.map(r => r.event_name))].sort(), [recipients])
+  const ev = eventFilter.trim().toLowerCase()
+  const ns = nameSearch.trim().toLowerCase()
   const visible = recipients.filter(r =>
-    (!eventFilter || r.event_name === eventFilter) &&
+    (!ev || r.event_name.toLowerCase().includes(ev)) &&
+    (!ns || `${r.company || ''} ${r.name} ${r.email}`.toLowerCase().includes(ns)) &&
     (showArchived || !r.archived) &&
     (!onlyOpen || (r.invoice_number && r.invoice_status !== 'paid')))
 
@@ -144,17 +145,16 @@ export default function AdminDunning({ token }: { token: string }) {
       {/* Empfaenger */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select value={eventFilter} onChange={e => setEventFilter(e.target.value)} className="admin-input flex-1 min-w-[180px]">
-            <option value="">Alle Events</option>
-            {events.map(ev => <option key={ev} value={ev}>{ev}</option>)}
-          </select>
+          <input list="dunningEvents" value={eventFilter} onChange={e => setEventFilter(e.target.value)} placeholder="Event filtern (leer = alle)" className="admin-input flex-1 min-w-[160px]" />
+          <datalist id="dunningEvents">{events.map(ev => <option key={ev} value={ev} />)}</datalist>
+          <input value={nameSearch} onChange={e => setNameSearch(e.target.value)} placeholder="Händler suchen …" className="admin-input flex-1 min-w-[140px]" />
           <button type="button" onClick={loadRecipients} disabled={loading} title="Aktualisieren"
             className="p-2 rounded-lg bg-bg-raised border border-theme hover:bg-bg-hover transition-colors">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={onlyOpen} onChange={e => setOnlyOpen(e.target.checked)} /> nur offene Rechnungen</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={onlyOpen} onChange={e => setOnlyOpen(e.target.checked)} /> nur mit offener Rechnung im ShinyFam-Rechnungsmodul</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} /> archivierte zeigen</label>
         </div>
 
@@ -179,7 +179,7 @@ export default function AdminDunning({ token }: { token: string }) {
                   {r.invoice_number && (
                     <div className="text-xs text-muted">Rechnung {r.invoice_number} vom {fmtDate(r.invoice_date)} · {fmtMoney(r.invoice_total)}</div>
                   )}
-                  {!eventFilter && <div className="text-xs text-muted">{r.event_name}</div>}
+                  <div className="text-xs text-muted">{r.event_name}{r.event_date ? ` · ${fmtDate(r.event_date)}` : ''}</div>
                 </div>
               </label>
             ))}
