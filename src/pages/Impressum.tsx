@@ -52,8 +52,8 @@ export default function Impressum() {
             <h2 className="font-display font-bold text-lg section-title mb-3">Hosting</h2>
             <p className="text-secondary text-sm leading-relaxed">
               Diese Website wird auf Servern von{' '}
-              <strong className="section-title">EUserv Internet</strong> betrieben.<br />
-              EUserv Internet, Ernst-Abbe-Str. 2, 07743 Jena, Deutschland.<br />
+              <strong className="section-title">IONOS SE</strong> betrieben.<br />
+              IONOS SE, Elgendorfer Str. 57, 56410 Montabaur, Deutschland.<br />
               Domain registriert über <strong className="section-title">domaincheck.de</strong>.
             </p>
           </section>

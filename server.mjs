@@ -19,19 +19,55 @@ app.use((req, res, next) => { if (req.headers['content-type'] && !req.headers['c
 
 const PORT = process.env.PORT || 3001
 
-// Turso HTTP API (via Cloudflare Worker proxy for IPv6 server)
-const TURSO_PROXY = 'https://turso-proxy.henke-stefan1985.workers.dev'
-const PROXY_SECRET = 'shinyfam-proxy-2026'
+// WhatsApp-Benachrichtigungen ueber die lokale Baileys-Bridge (eigener
+// PM2-Prozess auf Port 3102). Faellt still aus, wenn die Bridge nicht
+// laeuft oder keine Zielnummer konfiguriert ist — E-Mail bleibt der
+// verlaessliche Hauptkanal, WhatsApp ist ein zusaetzliches Ping.
+const WA_BRIDGE_URL = process.env.WA_BRIDGE_URL || 'http://127.0.0.1:3102'
+async function notifyWhatsApp(toNumber, text) {
+  const to = String(toNumber || '').replace(/\D/g, '')
+  if (!to) return
+
+  // Die WhatsApp-Bridge (Baileys) trennt die Verbindung alle paar Minuten
+  // kurz und baut sie automatisch neu auf. Trifft ein Sendeversuch genau
+  // dieses Fenster, schlaegt er fehl -- daher ein automatischer zweiter
+  // Versuch nach kurzer Verzoegerung, bevor endgueltig aufgegeben wird.
+  const attempt = async () => {
+    const res = await nodeFetch(`${WA_BRIDGE_URL}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, text }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Bridge-Fehler ${res.status}: ${body}`)
+    }
+  }
+
+  try {
+    await attempt()
+  } catch (e) {
+    console.error('[whatsapp-notify] erster Versuch fehlgeschlagen, erneuter Versuch in 8s:', e?.message || e)
+    await new Promise((resolve) => setTimeout(resolve, 8000))
+    try {
+      await attempt()
+    } catch (e2) {
+      console.error('[whatsapp-notify] auch zweiter Versuch fehlgeschlagen:', e2?.message || e2)
+    }
+  }
+}
+
+// Turso HTTP API — direkte Verbindung (Server hat normale IPv4-Anbindung,
+// der frühere Cloudflare-Worker-Umweg für IPv6-only-Hosts wird nicht mehr gebraucht)
+const TURSO_URL = (process.env.TURSO_DATABASE_URL || '').replace(/^libsql:\/\//, 'https://')
 
 async function dbExecute(sql, args = []) {
-  const tursoPath = '/v2/pipeline'
-  const url = TURSO_PROXY + tursoPath
+  const url = TURSO_URL + '/v2/pipeline'
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.TURSO_AUTH_TOKEN}`,
       'Content-Type': 'application/json',
-      'X-Proxy-Secret': PROXY_SECRET,
     },
     body: JSON.stringify({
       requests: [{ type: 'execute', stmt: { sql, args: args.map(v => v === null ? { type: 'null' } : typeof v === 'number' ? { type: 'float', value: v } : { type: 'text', value: String(v) }) } }, { type: 'close' }]
@@ -193,6 +229,14 @@ async function initDb() {
   await dbExecute(`ALTER TABLE events ADD COLUMN max_vendors INTEGER DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN price_per_meter_day REAL DEFAULT NULL`).catch(() => {})
   await dbExecute(`ALTER TABLE events ADD COLUMN price_tiers TEXT DEFAULT NULL`).catch(() => {})
+  await dbExecute(`ALTER TABLE events ADD COLUMN require_day1_with_day2 INTEGER DEFAULT 0`).catch(() => {})
+  // Welche Teilnahme-Optionen bei der Haendleranfrage pro Event wählbar sind,
+  // als JSON-Array ("tag1","tag2","beide"). NULL = alle drei wie bisher
+  // (Rueckwaertskompatibilitaet zu bereits bestehenden Events). Leeres Array
+  // [] bedeutet: keine Anfrage moeglich (z.B. wegen Sold Out).
+  await dbExecute(`ALTER TABLE events ADD COLUMN allowed_attendance_days TEXT DEFAULT NULL`).catch(() => {})
+  // Overlay-Badge auf der Event-Karte, z.B. "SOLD OUT" oder "AUSVERKAUFT".
+  await dbExecute(`ALTER TABLE events ADD COLUMN sold_out_label TEXT DEFAULT NULL`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, motif TEXT NOT NULL, size TEXT, message TEXT, status TEXT DEFAULT 'new', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, price REAL NOT NULL, stock INTEGER DEFAULT 1, image_url TEXT, is_featured INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, tags TEXT DEFAULT '[]', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await dbExecute(`CREATE TABLE IF NOT EXISTS artworks (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT, image_url TEXT, tags TEXT DEFAULT '[]', sold INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
@@ -277,6 +321,48 @@ app.all('/api/*splat', async (req, res) => {
     await initDb()
 
     if (path === '/health') return res.json({ ok: true })
+
+    // Internal-Endpunkte fuer HenkeJarvis (Wohnzimmer-Server) -- nutzt die
+    // hiesige, dauerhaft laufende ShinyFam-WhatsApp-Bridge als zuverlaessigen
+    // Versandweg fuer Stefans eigene Benachrichtigungen (z.B. 'Fenster offen,
+    // niemand zuhause'), unabhaengig vom Online-Zustand seines Laptops. Mit
+    // eigenem Secret-Token abgesichert statt des vollen Admin-Logins, da es
+    // nur fuer diesen einen Server-zu-Server-Zweck gedacht ist, nicht fuer
+    // Menschen im Browser (Stefans Entscheidung, 2026-10-08).
+    if (path === '/internal/notify-stefan' && method === 'POST') {
+      const token = req.headers['x-internal-token']
+      if (!process.env.INTERNAL_NOTIFY_TOKEN || token !== process.env.INTERNAL_NOTIFY_TOKEN) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
+      const { text } = req.body || {}
+      if (!text) return res.status(400).json({ error: 'text erforderlich' })
+      try {
+        await notifyWhatsApp(process.env.WA_NOTIFY_ADMIN, text)
+        return res.json({ ok: true })
+      } catch (e) {
+        return res.status(502).json({ error: String(e?.message || e) })
+      }
+    }
+
+    // Lese-Gegenstueck zu /internal/notify-stefan: liefert Stefans "Notiz an
+    // mich selbst"-Nachrichten (fuer HenkeJarvis' self_command_watcher.py,
+    // der daraus Heizungs-Sprachbefehle erkennt), siehe /self-notes in
+    // shinyfam-bridge.js fuer die eigentliche Quelle. Gleicher Token-Schutz.
+    if (path === '/internal/self-notes' && method === 'GET') {
+      const token = req.headers['x-internal-token']
+      if (!process.env.INTERNAL_NOTIFY_TOKEN || token !== process.env.INTERNAL_NOTIFY_TOKEN) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
+      try {
+        const since = req.query?.since || '0'
+        const r = await fetch(`${WA_BRIDGE_URL}/self-notes?since=${encodeURIComponent(since)}`)
+        if (!r.ok) throw new Error(`Bridge-Fehler ${r.status}`)
+        const data = await r.json()
+        return res.json(data)
+      } catch (e) {
+        return res.status(502).json({ error: String(e?.message || e) })
+      }
+    }
 
     // Analytics track — no auth, called from frontend
     if (path === '/analytics/track' && method === 'POST') {
@@ -382,13 +468,13 @@ app.all('/api/*splat', async (req, res) => {
         const adminMode = await isAdmin(req.headers.authorization)
         const sql = adminMode ? 'SELECT * FROM events ORDER BY date ASC' : "SELECT * FROM events WHERE is_active = 1 OR is_active = '1' ORDER BY date ASC"
         const r = await dbExecute(sql)
-        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null, pricePerMeterDay: row.price_per_meter_day != null ? Number(row.price_per_meter_day) : null, priceTiers: row.price_tiers ? JSON.parse(row.price_tiers) : null })))
+        return res.json(r.rows.map(row => ({ ...row, tags: JSON.parse(row.tags || '[]'), partners: JSON.parse(row.partners || '[]'), isActive: row.is_active === 1 || row.is_active === '1' || row.is_active === null, entryFee: row.entry_fee != null ? Number(row.entry_fee) : null, endDate: row.end_date ?? null, imageUrl: row.image_url ?? null, youtubeVideoId: row.youtube_video_id ?? null, ticketUrl: row.ticket_url ?? null, schedule: row.schedule ? JSON.parse(row.schedule) : null, maxVendors: row.max_vendors != null ? Number(row.max_vendors) : null, pricePerMeterDay: row.price_per_meter_day != null ? Number(row.price_per_meter_day) : null, priceTiers: row.price_tiers ? JSON.parse(row.price_tiers) : null, requireDay1WithDay2: row.require_day1_with_day2 === 1 || row.require_day1_with_day2 === '1', allowedAttendanceDays: row.allowed_attendance_days ? JSON.parse(row.allowed_attendance_days) : null, soldOutLabel: row.sold_out_label ?? null })))
       }
       if (method === 'POST') {
         if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
-        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers } = req.body
+        const { id, title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers, requireDay1WithDay2 } = req.body
         if (!id || !title || !date) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
-        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors,price_per_meter_day,price_tiers) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null])
+        await dbExecute(`INSERT INTO events (id,title,date,end_date,location,address,city,description,youtube_video_id,ticket_url,image_url,tags,partners,is_active,entry_fee,schedule,max_vendors,price_per_meter_day,price_tiers,require_day1_with_day2) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null, requireDay1WithDay2 ? 1 : 0])
         return res.status(201).json({ ok: true })
       }
     }
@@ -401,6 +487,23 @@ app.all('/api/*splat', async (req, res) => {
       return res.json(map)
     }
 
+    // Dediziertes, minimales PATCH nur fuer die Teilnahme-Tage-Sperrung
+    // (Dennis' Admin-Checkboxen "Tag 1/Tag 2 sperren", 28.10.2026) -- bewusst
+    // NICHT im generischen PATCH /events/:id untergebracht, da dieses alle
+    // Felder aus dem Request-Body destrukturiert und mit `?? null` schreibt;
+    // ein Teil-Update dort wuerde alle nicht mitgesendeten Felder loeschen.
+    const attendanceMatch = path.match(/^\/events\/([^/]+)\/attendance$/)
+    if (attendanceMatch && method === 'PATCH') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const id = attendanceMatch[1]
+      const { allowedAttendanceDays } = req.body
+      if (allowedAttendanceDays !== null && !Array.isArray(allowedAttendanceDays)) {
+        return res.status(400).json({ error: 'allowedAttendanceDays muss ein Array oder null sein' })
+      }
+      await dbExecute('UPDATE events SET allowed_attendance_days = ? WHERE id = ?', [allowedAttendanceDays === null ? null : JSON.stringify(allowedAttendanceDays), id])
+      return res.json({ ok: true })
+    }
+
     const eventMatch = path.match(/^\/events\/([^/]+)$/)
     if (eventMatch) {
       const id = eventMatch[1]
@@ -410,8 +513,8 @@ app.all('/api/*splat', async (req, res) => {
         return res.json({ ok: true })
       }
       if (method === 'PATCH') {
-        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers } = req.body
-        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=?,price_per_meter_day=?,price_tiers=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null, id])
+        const { title, date, endDate, location, address, city, description, youtubeVideoId, ticketUrl, imageUrl, tags, partners, isActive, entryFee, schedule, maxVendors, pricePerMeterDay, priceTiers, requireDay1WithDay2 } = req.body
+        await dbExecute(`UPDATE events SET title=?,date=?,end_date=?,location=?,address=?,city=?,description=?,youtube_video_id=?,ticket_url=?,image_url=?,tags=?,partners=?,is_active=?,entry_fee=?,schedule=?,max_vendors=?,price_per_meter_day=?,price_tiers=?,require_day1_with_day2=? WHERE id=?`, [title, date, endDate ?? null, location, address, city, description, youtubeVideoId ?? null, ticketUrl ?? null, imageUrl ?? null, JSON.stringify(tags ?? []), JSON.stringify(partners ?? []), isActive ? 1 : 0, entryFee ?? null, schedule ? JSON.stringify(schedule) : null, maxVendors ?? null, pricePerMeterDay ?? null, priceTiers && priceTiers.length > 0 ? JSON.stringify(priceTiers) : null, requireDay1WithDay2 ? 1 : 0, id])
         return res.json({ ok: true })
       }
     }
@@ -484,6 +587,12 @@ app.all('/api/*splat', async (req, res) => {
         const { name, email, phone, motif, size, message } = req.body
         if (!name || !email || !motif) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
         await dbExecute(`INSERT INTO orders (name,email,phone,motif,size,message) VALUES (?,?,?,?,?,?)`, [name, email, phone ?? null, motif, size ?? null, message ?? null])
+        // WhatsApp-Ping an Heike (Kunstwerke) + Stefan (Zweitabsicherung)
+        {
+          const waText = `🎨 Neue Kunstwerk-Anfrage bei ShinyFam\n\nName: ${name}\nE-Mail: ${email}${phone ? '\nTelefon: ' + phone : ''}\nMotiv: ${motif}${size ? '\nGröße: ' + size : ''}${message ? '\n\nNachricht:\n' + message : ''}`
+          notifyWhatsApp(process.env.WA_NOTIFY_KUNSTWERKE, waText)
+          notifyWhatsApp(process.env.WA_NOTIFY_ADMIN, waText)
+        }
         if (process.env.BREVO_API_KEY) {
           // Benachrichtigung ans ShinyFam-Postfach
           fetch('https://api.brevo.com/v3/smtp/email', {
@@ -755,18 +864,42 @@ app.all('/api/*splat', async (req, res) => {
     if (path === '/event-inquiry' && method === 'POST') {
       const { name, email, eventName, date, tcg, meters, metersNum, message, logoUrl, attendanceDays, company, phone, street, zipCity, priceTier, customerType } = req.body
       const isCommercial = customerType !== 'privat'
-      if (!name || !email || !eventName || !street || !zipCity || (isCommercial && !company)) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+      if (!name || !email || !eventName || !street || !zipCity || !meters || (isCommercial && !company)) return res.status(400).json({ error: 'Pflichtfelder fehlen' })
+      // Pro Event konfigurierbar, welche Teilnahme-Optionen (Tag 1 / Tag 2 /
+      // Beide) ueberhaupt waehlbar sind — admin-gepflegt in allowed_attendance_days
+      // (JSON-Array). NULL = alle drei erlaubt (Altbestand/Default), leeres
+      // Array = Event komplett gesperrt (z.B. Sold Out). Serverseitig prüfen,
+      // da das Frontend umgehbar ist. require_day1_with_day2 bleibt als
+      // Altlogik-Fallback erhalten, falls allowed_attendance_days nicht gesetzt ist.
+      const evRes = await dbExecute('SELECT allowed_attendance_days, require_day1_with_day2, sold_out_label FROM events WHERE title = ? LIMIT 1', [eventName]).catch(() => ({ rows: [] }))
+      const ev = evRes.rows[0]
+      if (ev) {
+        if (ev.sold_out_label) return res.status(400).json({ error: 'Dieses Event ist ausverkauft, Händleranfragen sind nicht mehr möglich.' })
+        if (ev.allowed_attendance_days) {
+          const allowedDays = JSON.parse(ev.allowed_attendance_days)
+          if (attendanceDays && !allowedDays.includes(attendanceDays)) {
+            return res.status(400).json({ error: 'Diese Teilnahme-Option ist für dieses Event nicht verfügbar.' })
+          }
+        } else if (attendanceDays === 'tag1') {
+          const requiresBothDays = ev.require_day1_with_day2 === 1 || ev.require_day1_with_day2 === '1'
+          if (requiresBothDays) return res.status(400).json({ error: 'Tag 1 ist nur buchbar, wenn auch Tag 2 mitgebucht wird.' })
+        }
+      }
       const resolvedMetersNum = metersNum != null ? Number(metersNum) : (meters ? parseFloat(String(meters).replace(',', '.')) || null : null)
       const daysCount = attendanceDays === 'beide' ? 2 : 1
       // Immer in DB speichern — unabhängig vom Mailserver
       await dbExecute('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,price_tier,customer_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [name, email, eventName, date || null, tcg || null, meters || null, message || null, attendanceDays || null, logoUrl || null, company || null, phone || null, street || null, zipCity || null, resolvedMetersNum, daysCount, priceTier || null, isCommercial ? 'gewerblich' : 'privat']).catch(() => {})
-      // Logo hochgeladen → direkt als Händler eintragen (nur wenn noch nicht vorhanden)
-      if (logoUrl) {
-        const existing = await dbExecute('SELECT id FROM brands WHERE name = ?', [company]).catch(() => ({ rows: [] }))
+      // Logo hochgeladen → direkt als Händler eintragen (nur wenn noch nicht
+      // vorhanden). Anzeigename: Firmenname bei Gewerblich, sonst Ansprechpartner
+      // (private Aussteller haben kein company-Feld, sollen aber trotzdem mit
+      // Logo auf der Händlerseite auftauchen).
+      const brandName = isCommercial ? company : name
+      if (logoUrl && brandName) {
+        const existing = await dbExecute('SELECT id FROM brands WHERE name = ?', [brandName]).catch(() => ({ rows: [] }))
         if (existing.rows.length === 0) {
           await dbExecute('INSERT INTO brands (id,name,logo_url,sort_order) VALUES (?,?,?,?)',
-            [`brand-${Date.now()}`, company, logoUrl, 9999]).catch(() => {})
+            [`brand-${Date.now()}`, brandName, logoUrl, 9999]).catch(() => {})
         }
       }
       const attendanceDaysLabels = { beide: 'Beide Tage (komplettes Event)', tag1: 'Nur Tag 1', tag2: 'Nur Tag 2' }
@@ -788,6 +921,12 @@ app.all('/api/*splat', async (req, res) => {
         meters ? `Standfläche: ${meters}` : null,
         message ? `\nNachricht:\n${message}` : null,
       ].filter(Boolean).join('\n')
+      // WhatsApp-Ping an Dennis (Händler-Anfragen) + Stefan (Zweitabsicherung)
+      {
+        const waText = `🏪 Neue Händler-Anfrage bei ShinyFam\n\n${details}`
+        notifyWhatsApp(process.env.WA_NOTIFY_HAENDLER, waText)
+        notifyWhatsApp(process.env.WA_NOTIFY_ADMIN, waText)
+      }
       if (process.env.BREVO_API_KEY) {
         fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',

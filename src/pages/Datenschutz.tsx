@@ -25,7 +25,7 @@ export default function Datenschutz() {
           <section className="card rounded-2xl p-6">
             <h2 className="font-display font-bold text-lg section-title mb-3">2. Hosting</h2>
             <p className="text-secondary text-sm leading-relaxed">
-              Diese Website wird auf Servern von <strong className="section-title">EUserv Internet</strong> (Ernst-Abbe-Str. 2, 07743 Jena)
+              Diese Website wird auf Servern von <strong className="section-title">IONOS SE</strong> (Elgendorfer Str. 57, 56410 Montabaur)
               betrieben. Beim Abruf der Website werden automatisch folgende Daten im Server-Logfile gespeichert:
             </p>
             <ul className="text-secondary text-sm leading-relaxed mt-2 ml-4 list-disc space-y-1">

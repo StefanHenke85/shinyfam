@@ -30,6 +30,7 @@ export interface TCGEvent {
   maxVendors?: number | null
   pricePerMeterDay?: number | null
   priceTiers?: PriceTier[] | null
+  requireDay1WithDay2?: boolean
 }
 
 export interface PriceTier {

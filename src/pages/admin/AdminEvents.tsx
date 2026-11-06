@@ -12,13 +12,14 @@ interface FormState {
   youtubeVideoId: string; ticketUrl: string; imageUrl: string
   partners: EventPartner[]; isActive: boolean; entryFee: string
   schedule: EventScheduleDay[]; maxVendors: string; pricePerMeterDay: string
-  priceTiers: PriceTierForm[]
+  priceTiers: PriceTierForm[]; requireDay1WithDay2: boolean
 }
 
 const EMPTY: FormState = {
   title: '', date: '', endDate: '', location: '', address: '', city: '',
   description: '', tags: [], youtubeVideoId: '', ticketUrl: '', imageUrl: '', partners: [],
   isActive: true, entryFee: '', schedule: [], maxVendors: '', pricePerMeterDay: '', priceTiers: [],
+  requireDay1WithDay2: false,
 }
 
 export default function AdminEvents({ token }: { token: string }) {
@@ -177,6 +178,7 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
       maxVendors: ev.maxVendors != null ? String(ev.maxVendors) : (r.max_vendors != null ? String(r.max_vendors) : ''),
       pricePerMeterDay: ev.pricePerMeterDay != null ? String(ev.pricePerMeterDay) : (r.price_per_meter_day != null ? String(r.price_per_meter_day) : ''),
       priceTiers: ((ev.priceTiers ?? (r.price_tiers ? JSON.parse(String(r.price_tiers)) : [])) as { label: string; pricePerMeterDay: number }[]).map(t => ({ label: t.label, pricePerMeterDay: String(t.pricePerMeterDay) })),
+      requireDay1WithDay2: ev.requireDay1WithDay2 ?? (r.require_day1_with_day2 === 1 || r.require_day1_with_day2 === '1'),
     })
     setTagsInput((ev.tags || []).join(', '))
     setEditId(ev.id)
@@ -341,6 +343,14 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
                   </div>
                 ))}
               </div>
+            )}
+            {form.schedule.length >= 2 && (
+              <label className="flex items-center gap-2 mt-3 text-sm text-secondary cursor-pointer">
+                <input type="checkbox" checked={form.requireDay1WithDay2}
+                  onChange={e => setForm({ ...form, requireDay1WithDay2: e.target.checked })}
+                  className="w-4 h-4" />
+                {form.schedule[0]?.label || 'Tag 1'} ist nur buchbar, wenn auch {form.schedule[1]?.label || 'Tag 2'} mitgebucht wird
+              </label>
             )}
           </div>
 

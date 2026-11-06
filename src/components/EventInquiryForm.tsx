@@ -8,12 +8,13 @@ interface Props {
   eventDate: string
   eventEndDate?: string | null
   priceTiers?: PriceTier[] | null
+  requireDay1WithDay2?: boolean
   onClose: () => void
 }
 
-const emptyForm = { customerType: 'gewerblich', name: '', email: '', company: '', phone: '', street: '', zipCity: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide', priceTier: '' }
+const emptyForm = { customerType: 'gewerblich', name: '', email: '', company: '', phone: '', street: '', zip: '', city: '', tcg: '', meters: '', location: '', message: '', logoUrl: '', attendanceDays: 'beide', priceTier: '' }
 
-export default function EventInquiryForm({ eventName, eventDate, eventEndDate, priceTiers, onClose }: Props) {
+export default function EventInquiryForm({ eventName, eventDate, eventEndDate, priceTiers, requireDay1WithDay2, onClose }: Props) {
   const isMultiDay = !!eventEndDate && new Date(eventEndDate).toDateString() !== new Date(eventDate).toDateString()
   const hasPriceTiers = !!priceTiers && priceTiers.length > 0
   const [form, setForm] = useState({ ...emptyForm, priceTier: hasPriceTiers ? priceTiers![0].label : '' })
@@ -30,7 +31,7 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, p
       body: JSON.stringify({
         ...form,
         company: isCommercial ? form.company : '',
-        logoUrl: isCommercial ? form.logoUrl : '',
+        zipCity: `${form.zip.trim()} ${form.city.trim()}`.trim(),
         eventName,
         date: eventDate,
         attendanceDays: isMultiDay ? form.attendanceDays : null,
@@ -104,11 +105,19 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, p
               onChange={e => setForm({ ...form, street: e.target.value })}
               className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
           </div>
-          <div>
-            <label className="text-secondary text-xs mb-1 block">PLZ / Ort *</label>
-            <input required placeholder="12345 Musterstadt" value={form.zipCity}
-              onChange={e => setForm({ ...form, zipCity: e.target.value })}
-              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <div>
+              <label className="text-secondary text-xs mb-1 block">PLZ *</label>
+              <input required placeholder="12345" inputMode="numeric" pattern="[0-9]{4,5}" maxLength={5} value={form.zip}
+                onChange={e => setForm({ ...form, zip: e.target.value.replace(/\D/g, '') })}
+                className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="text-secondary text-xs mb-1 block">Ort *</label>
+              <input required placeholder="Musterstadt" value={form.city}
+                onChange={e => setForm({ ...form, city: e.target.value })}
+                className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+            </div>
           </div>
           <div>
             <label htmlFor="inquiry-tcg" className="text-secondary text-xs mb-1 block">Welches TCG? *</label>
@@ -126,10 +135,14 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, p
             </select>
           </div>
           <div>
-            <label className="text-secondary text-xs mb-1 block">Benötigte Standfläche</label>
-            <input placeholder="z.B. 2m × 1m oder Tisch" value={form.meters}
-              onChange={e => setForm({ ...form, meters: e.target.value })}
-              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors" />
+            <label htmlFor="inquiry-meters" className="text-secondary text-xs mb-1 block">Benötigte Standfläche *</label>
+            <select id="inquiry-meters" required value={form.meters} onChange={e => setForm({ ...form, meters: e.target.value })}
+              className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors">
+              <option value="">Bitte wählen…</option>
+              {Array.from({ length: 19 }, (_, i) => i + 2).map(m => (
+                <option key={m} value={`${m}m`}>{m} Meter</option>
+              ))}
+            </select>
           </div>
           {hasPriceTiers && (
             <div>
@@ -148,20 +161,21 @@ export default function EventInquiryForm({ eventName, eventDate, eventEndDate, p
               <select id="inquiry-days" value={form.attendanceDays} onChange={e => setForm({ ...form, attendanceDays: e.target.value })}
                 className="w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none transition-colors">
                 <option value="beide">Beide Tage (komplettes Event)</option>
-                <option value="tag1">Nur Tag 1</option>
+                {!requireDay1WithDay2 && <option value="tag1">Nur Tag 1</option>}
                 <option value="tag2">Nur Tag 2</option>
               </select>
+              {requireDay1WithDay2 && (
+                <p className="text-muted text-xs mt-1">Tag 1 ist nur in Kombination mit Tag 2 buchbar.</p>
+              )}
             </div>
           )}
-          {isCommercial && (
-            <ImageUpload
-              label="Euer Logo (optional – wird direkt im Händlerbereich hinterlegt)"
-              value={form.logoUrl}
-              onChange={url => setForm({ ...form, logoUrl: url })}
-              maxSize={300}
-              quality={0.7}
-            />
-          )}
+          <ImageUpload
+            label="Logo (optional – wird direkt im Händlerbereich hinterlegt)"
+            value={form.logoUrl}
+            onChange={url => setForm({ ...form, logoUrl: url })}
+            maxSize={300}
+            quality={0.7}
+          />
           <div>
             <label className="text-secondary text-xs mb-1 block">Weitere Infos</label>
             <textarea rows={2} value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}

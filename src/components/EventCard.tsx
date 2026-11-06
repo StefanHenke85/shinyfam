@@ -171,6 +171,7 @@ export default function EventCard({ event }: Props) {
                 eventDate={event.date}
                 eventEndDate={event.endDate}
                 priceTiers={event.priceTiers}
+                requireDay1WithDay2={event.requireDay1WithDay2}
                 onClose={() => setShowInquiry(false)}
               />
             )}
