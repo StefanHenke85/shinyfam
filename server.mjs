@@ -955,6 +955,87 @@ app.all('/api/*splat', async (req, res) => {
       return res.json({ ok: true })
     }
 
+    // --- Zahlungserinnerung / Mahnung an ausgewaehlte Haendler (06.11.2026) ---
+    // Empfaenger = Haendleranfragen (event_inquiries) mit ihrer letzten Rechnung.
+    // Jede Mail geht EINZELN raus (keine fremden Adressen sichtbar). Adressen
+    // werden vor dem Versand bereinigt (Anfuehrungszeichen/Leerzeichen/<>),
+    // siehe Vorfall 06.11.: Outlook schickte 'adresse' mit Hochkommas -> 501.
+    if (path === '/mail/dunning/recipients' && method === 'GET') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const r = await dbExecute(`SELECT q.id, q.name, q.company, q.email, q.event_name, q.event_date, q.status, q.archived,
+          i.invoice_number, i.invoice_date, i.total AS invoice_total, i.status AS invoice_status
+        FROM event_inquiries q
+        LEFT JOIN invoices i ON i.id = (SELECT MAX(id) FROM invoices WHERE inquiry_id = q.id)
+        WHERE COALESCE(q.status, '') != 'declined'
+        ORDER BY q.event_name, COALESCE(q.company, q.name)`)
+      return res.json(r.rows.map(row => ({ ...row, archived: row.archived === 1 || row.archived === '1', invoice_total: row.invoice_total != null ? Number(row.invoice_total) : null })))
+    }
+
+    if (path === '/mail/dunning/template' && method === 'GET') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const r = await dbExecute("SELECT value FROM settings WHERE key = 'dunning_template'").catch(() => ({ rows: [] }))
+      let tmpl = null
+      try { tmpl = r.rows[0] ? JSON.parse(r.rows[0].value) : null } catch { tmpl = null }
+      return res.json(tmpl || { subject: '', body: '' })
+    }
+
+    if (path === '/mail/dunning/template' && method === 'PUT') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { subject, body } = req.body || {}
+      if (typeof subject !== 'string' || typeof body !== 'string') return res.status(400).json({ error: 'Betreff und Text erforderlich' })
+      await dbExecute('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['dunning_template', JSON.stringify({ subject, body })])
+      return res.json({ ok: true })
+    }
+
+    if (path === '/mail/dunning/send' && method === 'POST') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const { inquiry_ids, subject, body, copyToSelf } = req.body || {}
+      if (!Array.isArray(inquiry_ids) || !inquiry_ids.length) return res.status(400).json({ error: 'Keine Empfänger ausgewählt' })
+      if (!subject || !body) return res.status(400).json({ error: 'Betreff und Text erforderlich' })
+      if (inquiry_ids.length > 200) return res.status(400).json({ error: 'Zu viele Empfänger auf einmal (max. 200)' })
+      const fmtDate = (d) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
+      const fmtMoney = (n) => n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : ''
+      const cleanEmail = (e) => String(e || '').trim().replace(/^[\s'"<]+|[\s'">]+$/g, '').trim()
+      const results = []
+      for (const id of inquiry_ids) {
+        const qr = await dbExecute(`SELECT q.*, i.invoice_number, i.invoice_date, i.total AS invoice_total FROM event_inquiries q
+          LEFT JOIN invoices i ON i.id = (SELECT MAX(id) FROM invoices WHERE inquiry_id = q.id) WHERE q.id = ?`, [id])
+        const q = qr.rows[0]
+        if (!q) { results.push({ id, ok: false, error: 'nicht gefunden' }); continue }
+        const email = cleanEmail(q.email)
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { results.push({ id, name: q.name, email: q.email, ok: false, error: 'ungültige Adresse' }); continue }
+        const fill = (t) => String(t)
+          .replace(/\{\{name\}\}/g, q.name || '')
+          .replace(/\{\{firma\}\}/g, q.company || q.name || '')
+          .replace(/\{\{event\}\}/g, q.event_name || '')
+          .replace(/\{\{datum\}\}/g, fmtDate(q.event_date))
+          .replace(/\{\{rechnung\}\}/g, q.invoice_number || '')
+          .replace(/\{\{rechnungsdatum\}\}/g, fmtDate(q.invoice_date))
+          .replace(/\{\{betrag\}\}/g, fmtMoney(q.invoice_total))
+        try {
+          const br = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=utf-8', 'api-key': process.env.BREVO_API_KEY },
+            body: JSON.stringify({ sender: { name: 'ShinyFam', email: 'info@shinyfam.de' }, replyTo: { email: 'info@shinyfam.de', name: 'ShinyFam' }, to: [{ email, name: q.company || q.name }], subject: fill(subject), textContent: fill(body) }),
+          })
+          if (!br.ok) { const e = await br.json().catch(() => ({})); results.push({ id, name: q.company || q.name, email, ok: false, error: e.message || `Brevo ${br.status}` }); continue }
+          results.push({ id, name: q.company || q.name, email, ok: true })
+        } catch (err) {
+          results.push({ id, name: q.company || q.name, email, ok: false, error: String(err.message || err) })
+        }
+      }
+      const sent = results.filter(r => r.ok)
+      if (copyToSelf && sent.length) {
+        const list = results.map(r => `${r.ok ? '✓' : '✗'} ${r.name || ''} <${r.email || ''}>${r.ok ? '' : ' – ' + r.error}`).join('\n')
+        await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8', 'api-key': process.env.BREVO_API_KEY },
+          body: JSON.stringify({ sender: { name: 'ShinyFam', email: 'info@shinyfam.de' }, to: [{ email: 'info@shinyfam.de' }], subject: `Kopie: ${subject} (${sent.length} Empfänger)`, textContent: `Diese Mail ging an:\n${list}\n\n----- Text -----\n${body}` }),
+        }).catch(() => {})
+      }
+      return res.json({ ok: true, sent: sent.length, failed: results.length - sent.length, results })
+    }
+
     if (path === '/mail/send' && method === 'POST') {
       if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
       const { to, subject, text } = req.body

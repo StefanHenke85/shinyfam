@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Send, Mail, Inbox, Bell, BellOff, Trash2, Forward, FolderPlus, Folder, FolderOpen, X, FileText, Plus, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { RefreshCw, Send, Mail, Inbox, Bell, BellOff, Trash2, Forward, FolderPlus, Folder, FolderOpen, X, FileText, Plus, Pencil, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import AdminDunning from './AdminDunning'
 
 interface MailTemplate {
   id: number; name: string; type: string; subject: string; body: string
@@ -29,7 +30,7 @@ export default function AdminMail({ token }: { token: string }) {
   const [mails, setMails] = useState<MailMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<MailMessage | null>(null)
-  const [view, setView] = useState<'inbox' | 'compose' | 'templates'>('inbox')
+  const [view, setView] = useState<'inbox' | 'compose' | 'templates' | 'dunning'>('inbox')
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [text, setText] = useState('')
@@ -253,7 +254,7 @@ export default function AdminMail({ token }: { token: string }) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="section-title text-xl font-bold font-display">Postfach info@shinyfam.de</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             type="button"
             onClick={togglePush}
@@ -284,6 +285,13 @@ export default function AdminMail({ token }: { token: string }) {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'templates' ? 'bg-accent-purple text-white' : 'bg-bg-raised text-muted border border-theme'}`}
           >
             <FileText size={14} /> Vorlagen
+          </button>
+          <button
+            type="button"
+            onClick={() => { setView('dunning'); setSelected(null) }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${view === 'dunning' ? 'bg-red-600 text-white' : 'bg-bg-raised text-muted border border-theme'}`}
+          >
+            <AlertTriangle size={14} /> Mahnung
           </button>
         </div>
       </div>
@@ -544,6 +552,8 @@ export default function AdminMail({ token }: { token: string }) {
           )}
         </div>
       )}
+
+      {view === 'dunning' && <AdminDunning token={token} />}
 
       {view === 'compose' && (
         <form onSubmit={sendMail} className="max-w-2xl space-y-4">
