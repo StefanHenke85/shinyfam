@@ -11,7 +11,7 @@ interface Config {
   depositAmount: number; salesEnd: string | null; paypalEnabled: boolean; transferEnabled: boolean; saved?: boolean
 }
 interface EventRow { id: string; title: string; date: string; endDate: string | null; days: { key: string; label: string }[]; config: Config; counts: { visitors: number; dealers: number }; paid: { n: number; sum: number }; pending: { n: number; sum: number } }
-interface OrderRow { id: number; orderNumber: string; accessKey: string; kind: 'visitor' | 'dealer'; name: string; email: string; phone: string | null; company: string | null; items: { label: string; qty: number; price: number }[]; total: number; paymentMethod: string; paymentStatus: string; createdAt: string; paidAt: string | null; adminNote: string | null; tickets: { code: string; checkins: Record<string, string>; status: string }[] }
+interface OrderRow { isTest?: boolean; id: number; orderNumber: string; accessKey: string; kind: 'visitor' | 'dealer'; name: string; email: string; phone: string | null; company: string | null; items: { label: string; qty: number; price: number }[]; total: number; paymentMethod: string; paymentStatus: string; createdAt: string; paidAt: string | null; adminNote: string | null; tickets: { code: string; checkins: Record<string, string>; status: string }[] }
 interface Dealer { id: number; name: string; company: string | null; email: string; phone: string | null; meters: string | null; attendance_days: string | null; status: string; deposit_status: string | null; ticket_order: string | null }
 
 export default function AdminTickets({ token }: { token: string }) {
@@ -20,6 +20,23 @@ export default function AdminTickets({ token }: { token: string }) {
   const [eventId, setEventId] = useState('')
   const [view, setView] = useState<'orders' | 'deposit' | 'config' | 'bank'>('orders')
   const ev = events.find(e => e.id === eventId)
+  const [sandbox, setSandbox] = useState<{ sandbox: boolean; testOrders: number } | null>(null)
+  const loadSandbox = useCallback(() => {
+    fetch('/api/tickets/admin/sandbox', { headers: auth }).then(r => r.json()).then(setSandbox).catch(() => {})
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadSandbox() }, [loadSandbox])
+  async function toggleSandbox() {
+    if (!sandbox) return
+    const on = !sandbox.sandbox
+    if (!on && !confirm('Testmodus AUS und echten Verkauf starten?\n\nAb jetzt sind Bestellungen echt: Zahlungsdaten müssen eingetragen sein, Händlerbuchungen landen in den Händler-Anfragen und info@shinyfam.de bekommt Benachrichtigungen.')) return
+    await fetch('/api/tickets/admin/sandbox', { method: 'PUT', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
+    loadSandbox(); loadEvents()
+  }
+  async function clearTest() {
+    if (!confirm('Alle Testbestellungen und Test-Tickets löschen?')) return
+    await fetch('/api/tickets/admin/test-data', { method: 'DELETE', headers: auth })
+    loadSandbox(); loadEvents()
+  }
 
   const loadEvents = useCallback(() => {
     fetch('/api/tickets/admin/events', { headers: auth }).then(r => r.json()).then((d: EventRow[]) => {
@@ -40,6 +57,14 @@ export default function AdminTickets({ token }: { token: string }) {
           {events.map(e => <option key={e.id} value={e.id}>{e.title} ({e.date.slice(0, 10)})</option>)}
         </select>
       </div>
+
+      {sandbox && (
+        <div className={`rounded-xl p-3 mb-4 flex flex-wrap items-center gap-3 text-sm border-2 ${sandbox.sandbox ? 'border-red-400 bg-red-500/10' : 'border-green-500 bg-green-500/10'}`}>
+          <span className="text-primary font-bold mr-auto">{sandbox.sandbox ? '🧪 Testmodus AN – Bestellungen sind nur Tests (Zahlung per Knopf simulierbar)' : '✅ Echter Verkauf läuft'}</span>
+          {sandbox.testOrders > 0 && <button type="button" onClick={clearTest} className="btn-outline text-xs">{sandbox.testOrders} Testbestellung{sandbox.testOrders > 1 ? 'en' : ''} löschen</button>}
+          <button type="button" onClick={toggleSandbox} className={sandbox.sandbox ? 'btn-primary text-xs' : 'btn-outline text-xs'}>{sandbox.sandbox ? 'Echten Verkauf starten' : 'Zurück in den Testmodus'}</button>
+        </div>
+      )}
 
       {ev && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -118,7 +143,7 @@ function Orders({ token, eventId, days, onChange }: { token: string; eventId: st
           <div key={o.id} className="card rounded-xl p-4">
             <div className="flex flex-wrap items-start gap-3">
               <div className="mr-auto">
-                <p className="font-mono text-sm font-bold text-accent-purple">{o.orderNumber} <span className="text-xs text-muted font-sans">{o.kind === 'dealer' ? '🏪 Händler' : '🎟️ Besucher'} · {o.paymentMethod === 'paypal' ? 'PayPal' : 'Überweisung'}</span></p>
+                <p className="font-mono text-sm font-bold text-accent-purple">{o.orderNumber} <span className="text-xs text-muted font-sans">{o.isTest ? '🧪 TEST · ' : ''}{o.kind === 'dealer' ? '🏪 Händler' : '🎟️ Besucher'} · {o.paymentMethod === 'paypal' ? 'PayPal' : 'Überweisung'}</span></p>
                 <p className="text-primary font-semibold">{o.company ? `${o.company} – ` : ''}{o.name}</p>
                 <p className="text-secondary text-xs">{o.email}{o.phone ? ` · ${o.phone}` : ''} · bestellt {o.createdAt.slice(0, 16)}{o.paymentStatus === 'pending' && ageDays(o.createdAt) >= 5 ? ` · ⚠️ seit ${ageDays(o.createdAt)} Tagen offen` : ''}</p>
                 <p className="text-secondary text-sm mt-1">{o.items.map(i => `${i.qty}× ${i.label}`).join(', ')}</p>

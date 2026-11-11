@@ -5,7 +5,7 @@ import { CheckCircle2, Clock, XCircle, Download, Copy, Loader2 } from 'lucide-re
 const euro = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
 
 interface OrderData {
-  order: { orderNumber: string; kind: 'visitor' | 'dealer'; name: string; email: string; company: string | null; items: { label: string; qty: number; price: number }[]; total: number; paymentMethod: 'paypal' | 'transfer'; paymentStatus: 'pending' | 'paid' | 'cancelled'; createdAt: string }
+  order: { orderNumber: string; kind: 'visitor' | 'dealer'; name: string; email: string; company: string | null; items: { label: string; qty: number; price: number }[]; total: number; paymentMethod: 'paypal' | 'transfer'; paymentStatus: 'pending' | 'paid' | 'cancelled'; createdAt: string; isTest?: boolean }
   event: { title: string; date: string; endDate: string | null; location: string; address: string; city: string } | null
   days: { key: string; label: string }[]
   tickets: { code: string; kind: string; label: string; validDays: string[]; status: string }[]
@@ -32,6 +32,8 @@ export default function TicketOrder() {
   const k = sp.get('k') || ''
   const [data, setData] = useState<OrderData | null>(null)
   const [error, setError] = useState('')
+  const [reload, setReload] = useState(0)
+  const [simBusy, setSimBusy] = useState(false)
 
   useEffect(() => {
     let stop = false
@@ -45,7 +47,7 @@ export default function TicketOrder() {
     load()
     const t = setInterval(load, 60000) // Seite offen lassen -> Tickets erscheinen nach Zahlungseingang
     return () => { stop = true; clearInterval(t) }
-  }, [number, k])
+  }, [number, k, reload])
 
   if (error) return <div className="max-w-2xl mx-auto px-4 py-12 pt-28"><div className="card rounded-2xl p-6 text-primary">{error}</div></div>
   if (!data) return <div className="max-w-2xl mx-auto px-4 py-12 pt-28 text-muted flex items-center gap-2"><Loader2 className="animate-spin" size={16} /> Lädt…</div>
@@ -54,6 +56,14 @@ export default function TicketOrder() {
   const dayLabel = (key: string) => data.days.find(d => d.key === key)?.label || key
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 pt-28">
+      {o.isTest && <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-500/10 p-3 text-sm text-primary"><strong>🧪 TESTMODUS</strong> – hier kann gefahrlos ausprobiert werden. Es wird kein Geld eingezogen, Bestellungen landen nicht in den echten Listen und die Tickets gelten nicht am Einlass.</div>}
+      {o.isTest && o.paymentStatus === 'pending' && (
+        <button type="button" disabled={simBusy} className="btn-primary w-full mb-4" onClick={async () => {
+          setSimBusy(true)
+          await fetch(`/api/tickets/order/${o.orderNumber}/simulate-payment?k=${encodeURIComponent(k)}`, { method: 'POST' }).catch(() => {})
+          setSimBusy(false); setReload(x => x + 1)
+        }}>{simBusy ? 'Moment…' : '🧪 Zahlung simulieren (nur Test)'}</button>
+      )}
       <p className="text-accent-purple font-semibold text-sm mb-1">Bestellung {o.orderNumber}</p>
       <h1 className="font-display text-3xl font-black section-title mb-2">{data.event?.title}</h1>
       {data.event && <p className="text-secondary text-sm mb-6">{data.event.location}, {data.event.address}, {data.event.city}</p>}

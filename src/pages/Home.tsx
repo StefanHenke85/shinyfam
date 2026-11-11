@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { useTicketShopList } from '../ticketShop'
 import { Sparkles, CalendarDays, Palette, ChevronRight, ChevronLeft, Users, Zap, MapPin, Clock, ExternalLink, Store, Instagram } from 'lucide-react'
 import EventCard from '../components/EventCard'
 import CountdownTimer from '../components/CountdownTimer'
@@ -30,6 +31,7 @@ function NextEventInquiry({ event }: { event: TCGEvent }) {
 }
 
 export default function Home() {
+  const ticketShops = useTicketShopList()
   const { t } = useTheme()
   const [events, setEvents] = useState<TCGEvent[]>([])
   const [videos, setVideos] = useState<YTVideo[]>([])
@@ -146,9 +148,15 @@ export default function Home() {
               </div>
 
               <div className="event-popup-cta">
-                <Link to="/events" onClick={closePopup} className="event-popup-cta-primary">
-                  Mehr erfahren <ChevronRight size={14} />
-                </Link>
+                {ticketShops.find(sh => sh.eventId === nextEvent.id) ? (
+                  <Link to={`/tickets/${ticketShops.find(sh => sh.eventId === nextEvent.id)!.slug}`} onClick={closePopup} className="event-popup-cta-primary">
+                    Tickets & Stände <ChevronRight size={14} />
+                  </Link>
+                ) : (
+                  <Link to="/events" onClick={closePopup} className="event-popup-cta-primary">
+                    Mehr erfahren <ChevronRight size={14} />
+                  </Link>
+                )}
                 <button type="button" onClick={closePopup} className="event-popup-cta-secondary">
                   Schließen
                 </button>
@@ -192,6 +200,16 @@ export default function Home() {
               {t('hero.artwork')}
             </Link>
           </div>
+          {ticketShops.length > 0 && (
+            <div className="mb-10 -mt-4 flex flex-col items-center gap-2">
+              {ticketShops.map(sh => (
+                <div key={sh.eventId} className="flex flex-wrap gap-2 justify-center">
+                  {sh.visitorEnabled && <Link to={`/tickets/${sh.slug}`} className="btn-primary">🎟️ Tickets für {sh.title.trim()}</Link>}
+                  {sh.dealerEnabled && <Link to={`/tickets/${sh.slug}?haendler=1`} className="btn-outline">🏪 Händlerstand buchen</Link>}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="tcg-stats-bar inline-flex">
             <div className="tcg-stat">
@@ -395,7 +413,12 @@ export default function Home() {
                   </p>
                   <CountdownTimer targetDate={nextEvent.date} />
                 </div>
-                {nextEvent.ticketUrl ? (
+                {ticketShops.find(sh => sh.eventId === nextEvent.id) ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {ticketShops.find(sh => sh.eventId === nextEvent.id)!.visitorEnabled && <Link to={`/tickets/${ticketShops.find(sh => sh.eventId === nextEvent.id)!.slug}`} className="btn-primary inline-flex">🎟️ Tickets kaufen</Link>}
+                    {ticketShops.find(sh => sh.eventId === nextEvent.id)!.dealerEnabled && <Link to={`/tickets/${ticketShops.find(sh => sh.eventId === nextEvent.id)!.slug}?haendler=1`} className="btn-outline inline-flex">🏪 Stand buchen</Link>}
+                  </div>
+                ) : nextEvent.ticketUrl ? (
                   <a href={nextEvent.ticketUrl} target="_blank" rel="noopener noreferrer" className="btn-primary mt-4 inline-flex">
                     {t('home.tickets')}
                   </a>

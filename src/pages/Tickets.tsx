@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CalendarDays, MapPin, Ticket, Store, Minus, Plus, Loader2 } from 'lucide-react'
 import ImageUpload from '../components/ImageUpload'
 
@@ -16,6 +16,7 @@ interface ShopData {
   visitor: { enabled: boolean; options: { key: string; label: string; price: number }[]; remaining: number | null; info: string } | null
   dealer: { enabled: boolean; meterOptions: number[]; dayOptions: { key: string; label: string; days: number }[]; pricePerMeterDay: number | null; remaining: number | null; depositAmount: number } | null
   payment: { paypal: boolean; transfer: boolean }
+  sandbox?: boolean
 }
 
 function fmtRange(date: string, end: string | null) {
@@ -236,7 +237,8 @@ function DealerForm({ data }: { data: ShopData }) {
 function TicketShop({ slug }: { slug: string }) {
   const [data, setData] = useState<ShopData | null>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'visitor' | 'dealer'>('visitor')
+  const [sp] = useSearchParams()
+  const [tab, setTab] = useState<'visitor' | 'dealer'>(sp.get('haendler') ? 'dealer' : 'visitor')
 
   useEffect(() => {
     const token = localStorage.getItem('shinyfam-admin-token')
@@ -256,6 +258,7 @@ function TicketShop({ slug }: { slug: string }) {
   const ev = data.event
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 pt-28">
+      {data.sandbox && <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-500/10 p-3 text-sm text-primary"><strong>🧪 TESTMODUS</strong> – hier kann gefahrlos ausprobiert werden. Es wird kein Geld eingezogen, Bestellungen landen nicht in den echten Listen und die Tickets gelten nicht am Einlass.</div>}
       {data.preview && <div className="mb-4 rounded-xl border border-amber-400/60 bg-amber-400/10 p-3 text-sm text-primary">Admin-Vorschau: Der Verkauf ist für Besucher noch nicht freigeschaltet.</div>}
       <p className="text-accent-purple font-semibold text-sm mb-1">Online-Tickets</p>
       <h1 className="font-display text-3xl md:text-4xl font-black section-title mb-3">{ev.title}</h1>
@@ -266,6 +269,8 @@ function TicketShop({ slug }: { slug: string }) {
       </div>
       {!data.open ? (
         <div className="card rounded-2xl p-6 text-secondary">Der Online-Verkauf ist beendet. Tickets gibt es noch an der Tageskasse.</div>
+      ) : !data.payment.paypal && !data.payment.transfer ? (
+        <div className="card rounded-2xl p-6 text-secondary">Der Online-Vorverkauf startet in Kürze – die Bezahlmöglichkeiten werden gerade eingerichtet. Schau bald wieder vorbei!{data.preview || localStorage.getItem('shinyfam-admin-token') ? <p className="text-amber-600 text-sm mt-2">Admin: Im Admin unter Tickets → „Bank & PayPal“ IBAN und/oder PayPal.me eintragen, dann kann bestellt werden.</p> : null}</div>
       ) : (
         <div className="card rounded-2xl p-5">
           {hasVisitor && hasDealer && (

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useTicketShop } from '../ticketShop'
 import { Link } from 'react-router-dom'
 import { MapPin, Calendar, Tag, Ticket, Clock, ExternalLink, Users } from 'lucide-react'
 import { format } from 'date-fns'
@@ -11,17 +12,6 @@ import { useTheme } from '../contexts/ThemeContext'
 
 interface Props { event: TCGEvent }
 
-// Online-Ticketverkauf (tickets.mjs): einmal pro Seitenaufruf laden
-type ShopEntry = { eventId: string; slug: string; visitorEnabled: boolean; dealerEnabled: boolean; open: boolean }
-let shopPromise: Promise<ShopEntry[]> | null = null
-function useTicketShop(eventId: string) {
-  const [entry, setEntry] = useState<ShopEntry | null>(null)
-  useEffect(() => {
-    shopPromise ||= fetch('/api/tickets/shop').then(r => r.json()).then(d => (Array.isArray(d) ? d : [])).catch(() => [])
-    shopPromise.then(list => setEntry(list.find(e => e.eventId === eventId && e.open) || null))
-  }, [eventId])
-  return entry
-}
 
 export default function EventCard({ event }: Props) {
   const { lang, t } = useTheme()

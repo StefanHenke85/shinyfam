@@ -94,6 +94,7 @@ async function ensureSchema(db) {
   await db(`CREATE TABLE IF NOT EXISTS ticket_config (event_id TEXT PRIMARY KEY, slug TEXT, data TEXT NOT NULL, updated_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
   await db(`CREATE TABLE IF NOT EXISTS ticket_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, order_number TEXT UNIQUE NOT NULL, access_key TEXT NOT NULL, event_id TEXT NOT NULL, event_title TEXT, kind TEXT NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, company TEXT, street TEXT, zip_city TEXT, customer_type TEXT, items TEXT NOT NULL, total REAL NOT NULL, payment_method TEXT NOT NULL, payment_status TEXT DEFAULT 'pending', inquiry_id INTEGER, admin_note TEXT, created_at TEXT DEFAULT (datetime('now')), paid_at TEXT, cancelled_at TEXT)`).catch(() => {})
   await db(`CREATE TABLE IF NOT EXISTS tickets (code TEXT PRIMARY KEY, order_id INTEGER NOT NULL, event_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, valid_days TEXT NOT NULL, holder TEXT, checkins TEXT DEFAULT '{}', status TEXT DEFAULT 'valid', created_at TEXT DEFAULT (datetime('now')))`).catch(() => {})
+  await db(`ALTER TABLE ticket_orders ADD COLUMN is_test INTEGER DEFAULT 0`).catch(() => {})
   await db(`ALTER TABLE event_inquiries ADD COLUMN deposit_status TEXT DEFAULT NULL`).catch(() => {})
   await db(`ALTER TABLE event_inquiries ADD COLUMN deposit_note TEXT DEFAULT NULL`).catch(() => {})
   await db(`ALTER TABLE event_inquiries ADD COLUMN ticket_order TEXT DEFAULT NULL`).catch(() => {})
@@ -128,12 +129,14 @@ async function getSettings(db) {
     iban: s.ticket_iban || '',
     bic: s.ticket_bic || '',
     bankName: s.ticket_bank_name || '',
+    // Testmodus: Standard AN, bis im Admin bewusst ausgeschaltet
+    sandbox: s.ticket_sandbox !== 'false',
     paypalMe: (s.ticket_paypal_me || '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '').replace(/\/.*$/, ''),
   }
 }
 
-async function soldCounts(db, eventId) {
-  const r = await db("SELECT kind, items FROM ticket_orders WHERE event_id = ? AND payment_status != 'cancelled'", [eventId])
+async function soldCounts(db, eventId, sandbox = false) {
+  const r = await db("SELECT kind, items FROM ticket_orders WHERE event_id = ? AND payment_status != 'cancelled' AND COALESCE(is_test,0) = ?", [eventId, sandbox ? 1 : 0])
   let visitors = 0, dealers = 0
   for (const row of r.rows) {
     if (row.kind === 'dealer') { dealers++; continue }
@@ -172,8 +175,15 @@ async function sendMail({ to, toName, subject, html, attachments, replyTo }) {
   }
 }
 
+const isTest = (o) => o?.is_test === 1 || o?.is_test === '1' || o?.is_test === true
+const TEST_NOTE = '<p style="background:#fde2e2;border:1px solid #f59e9e;border-radius:8px;padding:10px 12px"><strong>TESTBESTELLUNG</strong> – nur ein Test, es wird kein Geld eingezogen und die Tickets gelten nicht am Einlass.</p>'
+
 function paymentBlockHtml(order, settings) {
   const parts = []
+  if (isTest(order)) {
+    parts.push(TEST_NOTE)
+    settings = { ...settings, bankHolder: settings.bankHolder || 'Test-Konto', iban: settings.iban || 'DE00 0000 0000 0000 0000 00 (Test)', paypalMe: settings.paypalMe || 'test' }
+  }
   if (order.payment_method === 'transfer') {
     parts.push(`<p><strong>Bitte überweise ${euro(order.total)} an:</strong><br>
       Kontoinhaber: ${esc(settings.bankHolder || '(wird noch ergänzt)')}<br>
@@ -210,7 +220,7 @@ async function mailOrderReceived(order, ev, cfg, settings) {
   const isDealer = order.kind === 'dealer'
   await sendMail({
     to: order.email, toName: order.name,
-    subject: `${isDealer ? 'Deine Standbuchung' : 'Deine Ticketbestellung'} ${order.order_number} – ${ev.title.trim()}`,
+    subject: `${isTest(order) ? '[TEST] ' : ''}${isDealer ? 'Deine Standbuchung' : 'Deine Ticketbestellung'} ${order.order_number} – ${ev.title.trim()}`,
     html: `<h2 style="color:#7c3aed">Danke für deine ${isDealer ? 'Standbuchung' : 'Bestellung'}, ${esc(order.name)}!</h2>
       <p><strong>${esc(ev.title.trim())}</strong><br>${esc(ev.location || '')}, ${esc(ev.address || '')} ${esc(ev.city || '')}</p>
       ${itemsHtml(items)}
@@ -293,7 +303,7 @@ async function mailTickets(db, order, ev, cfg) {
   const isDealer = order.kind === 'dealer'
   return sendMail({
     to: order.email, toName: order.name,
-    subject: `${isDealer ? 'Deine Standbestätigung' : 'Deine Tickets'} für ${ev.title.trim()} (${order.order_number})`,
+    subject: `${isTest(order) ? '[TEST] ' : ''}${isDealer ? 'Deine Standbestätigung' : 'Deine Tickets'} für ${ev.title.trim()} (${order.order_number})`,
     html: `<h2 style="color:#7c3aed">Zahlung erhalten – ${isDealer ? 'dein Stand ist bestätigt' : 'hier sind deine Tickets'}!</h2>
       <p>Hallo ${esc(order.name)},</p>
       <p>vielen Dank, deine Zahlung über <strong>${euro(order.total)}</strong> ist bei uns eingegangen.
@@ -326,7 +336,7 @@ function publicOrder(o) {
 }
 
 function adminOrder(o) {
-  return { ...publicOrder(o), id: Number(o.id), eventId: o.event_id, eventTitle: o.event_title, phone: o.phone, street: o.street, zipCity: o.zip_city, customerType: o.customer_type, inquiryId: o.inquiry_id != null ? Number(o.inquiry_id) : null, adminNote: o.admin_note, accessKey: o.access_key, cancelledAt: o.cancelled_at }
+  return { ...publicOrder(o), isTest: isTest(o), id: Number(o.id), eventId: o.event_id, eventTitle: o.event_title, phone: o.phone, street: o.street, zipCity: o.zip_city, customerType: o.customer_type, inquiryId: o.inquiry_id != null ? Number(o.inquiry_id) : null, adminNote: o.admin_note, accessKey: o.access_key, cancelledAt: o.cancelled_at }
 }
 
 function currentEventDayKey(ev) {
@@ -365,8 +375,8 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     const cfg = await loadConfig(db, ev)
     const isAdm = await admin()
     if (!(cfg.visitorEnabled || cfg.dealerEnabled) && !isAdm) return res.status(404).json({ error: 'Für dieses Event gibt es (noch) keinen Online-Verkauf.' }), true
-    const counts = await soldCounts(db, ev.id)
     const settings = await getSettings(db)
+    const counts = await soldCounts(db, ev.id, settings.sandbox)
     let schedule = null
     try { schedule = ev.schedule ? JSON.parse(ev.schedule) : null } catch { /* */ }
     return res.json({
@@ -388,7 +398,8 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
         remaining: cfg.dealerLimit ? Math.max(0, cfg.dealerLimit - counts.dealers) : null,
         depositAmount: Number(cfg.depositAmount || 0),
       } : null,
-      payment: { paypal: !!cfg.paypalEnabled && !!settings.paypalMe, transfer: !!cfg.transferEnabled },
+      sandbox: settings.sandbox,
+      payment: { paypal: !!cfg.paypalEnabled && (!!settings.paypalMe || settings.sandbox), transfer: !!cfg.transferEnabled && (!!settings.iban || settings.sandbox) },
     }), true
   }
 
@@ -407,9 +418,9 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Bitte Name und gültige E-Mail angeben.' }), true
     if (!b.acceptTerms) return res.status(400).json({ error: 'Bitte die Teilnahme- und Ticketbedingungen akzeptieren.' }), true
     const pm = b.paymentMethod === 'paypal' ? 'paypal' : 'transfer'
-    if (pm === 'paypal' && !(cfg.paypalEnabled && settings.paypalMe)) return res.status(400).json({ error: 'PayPal ist für dieses Event nicht verfügbar.' }), true
-    if (pm === 'transfer' && !cfg.transferEnabled) return res.status(400).json({ error: 'Überweisung ist für dieses Event nicht verfügbar.' }), true
-    const counts = await soldCounts(db, ev.id)
+    if (pm === 'paypal' && !(cfg.paypalEnabled && (settings.paypalMe || settings.sandbox))) return res.status(400).json({ error: 'PayPal ist für dieses Event nicht verfügbar.' }), true
+    if (pm === 'transfer' && !(cfg.transferEnabled && (settings.iban || settings.sandbox))) return res.status(400).json({ error: 'Überweisung ist für dieses Event nicht verfügbar.' }), true
+    const counts = await soldCounts(db, ev.id, settings.sandbox)
     const kind = b.kind === 'dealer' ? 'dealer' : 'visitor'
     let items = []
     let extra = {}
@@ -453,11 +464,11 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     }
     const accessKey = randomBytes(12).toString('hex')
     const phone = String(b.phone || '').trim().slice(0, 40) || null
-    await db('INSERT INTO ticket_orders (order_number, access_key, event_id, event_title, kind, name, email, phone, company, street, zip_city, customer_type, items, total, payment_method) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      [orderNumber, accessKey, ev.id, ev.title, kind, name, email, phone, extra.company || null, extra.street || null, extra.zipCity || null, extra.customerType || null, JSON.stringify(items), total, pm])
+    await db('INSERT INTO ticket_orders (order_number, access_key, event_id, event_title, kind, name, email, phone, company, street, zip_city, customer_type, items, total, payment_method, is_test) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [orderNumber, accessKey, ev.id, ev.title, kind, name, email, phone, extra.company || null, extra.street || null, extra.zipCity || null, extra.customerType || null, JSON.stringify(items), total, pm, settings.sandbox ? 1 : 0])
     const order = (await db('SELECT * FROM ticket_orders WHERE order_number = ?', [orderNumber])).rows[0]
 
-    if (kind === 'dealer') {
+    if (kind === 'dealer' && !settings.sandbox) {
       // normale Haendleranfrage mitfuehren (Rechnung, Logo, Haendlerliste)
       await db('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,customer_type,ticket_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [name, email, ev.title, ev.date, extra.tcg || null, `${extra.meters}m`, `[Online-Buchung ${orderNumber}, ${pm === 'paypal' ? 'PayPal' : 'Überweisung'}, ${euro(total)}, noch nicht bezahlt]${extra.message ? '\n' + extra.message : ''}`, extra.dayKey, extra.logoUrl, extra.company || null, phone, extra.street, extra.zipCity, extra.meters, extra.nDays, extra.customerType, orderNumber]).catch((e) => console.error('[tickets] inquiry', e))
@@ -472,6 +483,8 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     }
 
     mailOrderReceived(order, ev, cfg, settings).catch(() => {})
+    // Testmodus: keine Haendleranfrage, keine Mail an info@, kein WhatsApp
+    if (settings.sandbox) return res.json({ ok: true, orderNumber, key: accessKey, test: true }), true
     const summary = `${kind === 'dealer' ? '🏪 Neue Online-Standbuchung' : '🎟️ Neue Ticketbestellung'} ${orderNumber}\n${ev.title.trim()}\n${name}${extra.company ? ' (' + extra.company + ')' : ''}\n${items.map((i) => `${i.qty}× ${i.label}`).join('\n')}\nSumme: ${euro(total)} per ${pm === 'paypal' ? 'PayPal' : 'Überweisung'}`
     notifyWhatsApp(process.env.WA_NOTIFY_ADMIN, summary)
     if (kind === 'dealer' && process.env.TICKETS_WA_HAENDLER === '1') notifyWhatsApp(process.env.WA_NOTIFY_HAENDLER, summary)
@@ -490,18 +503,34 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     const settings = await getSettings(db)
     const tickets = o.payment_status === 'paid' ? (await db('SELECT code, kind, label, valid_days, holder, checkins, status FROM tickets WHERE order_id = ? ORDER BY created_at, code', [o.id])).rows.map((t) => ({ code: t.code, kind: t.kind, label: t.label, validDays: JSON.parse(t.valid_days), status: t.status })) : []
     return res.json({
-      order: publicOrder(o),
+      order: { ...publicOrder(o), isTest: isTest(o) },
       event: ev ? { title: ev.title.trim(), date: ev.date, endDate: ev.end_date, location: (ev.location || '').trim(), address: (ev.address || '').trim(), city: (ev.city || '').trim() } : null,
       days: ev ? eventDays(ev) : [],
       tickets,
       depositAmount: o.kind === 'dealer' ? Number(cfg?.depositAmount || 0) : 0,
       payment: o.payment_status === 'pending' ? {
         method: o.payment_method,
-        bankHolder: settings.bankHolder, iban: settings.iban, bic: settings.bic, bankName: settings.bankName,
+        bankHolder: settings.bankHolder || (isTest(o) ? 'Test-Konto' : ''), iban: settings.iban || (isTest(o) ? 'DE00 0000 0000 0000 0000 00 (Test)' : ''), bic: settings.bic, bankName: settings.bankName,
         paypalLink: settings.paypalMe ? `https://paypal.me/${encodeURIComponent(settings.paypalMe)}/${Number(o.total).toFixed(2)}EUR` : null,
         reference: o.order_number,
       } : null,
     }), true
+  }
+
+  // Testmodus: Zahlung per Knopf simulieren (nur fuer Testbestellungen)
+  const simMatch = path.match(/^\/tickets\/order\/(TK-[A-Z0-9]+)\/simulate-payment$/)
+  if (simMatch && method === 'POST') {
+    const o = (await db('SELECT * FROM ticket_orders WHERE order_number = ?', [simMatch[1]])).rows[0]
+    if (!o || o.access_key !== req.query?.k) return res.status(404).json({ error: 'Bestellung nicht gefunden' }), true
+    if (!isTest(o)) return res.status(400).json({ error: 'Nur für Testbestellungen.' }), true
+    if (o.payment_status !== 'pending') return res.json({ ok: true }), true
+    const ev = await loadEvent(db, o.event_id)
+    const cfg = await loadConfig(db, ev)
+    await db("UPDATE ticket_orders SET payment_status = 'paid', paid_at = datetime('now') WHERE id = ?", [o.id])
+    const fresh = (await db('SELECT * FROM ticket_orders WHERE id = ?', [o.id])).rows[0]
+    await issueTickets(db, fresh, ev)
+    mailTickets(db, fresh, ev, cfg).catch(() => {})
+    return res.json({ ok: true }), true
   }
 
   const pdfMatch = path.match(/^\/tickets\/pdf\/(TK-[A-Z0-9]+)$/)
@@ -535,7 +564,7 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     const ev = await loadEvent(db, t.event_id)
     const checkins = JSON.parse(t.checkins || '{}')
     const base = {
-      found: true, code, kind: t.kind, label: t.label, validDays: JSON.parse(t.valid_days),
+      found: true, code, isTest: isTest(o), kind: t.kind, label: t.label, validDays: JSON.parse(t.valid_days),
       status: o?.payment_status === 'cancelled' || t.status !== 'valid' ? 'cancelled' : 'valid',
       event: ev ? { title: ev.title.trim(), date: ev.date, endDate: ev.end_date } : null,
       days: ev ? eventDays(ev) : [], today: ev ? currentEventDayKey(ev) : null,
@@ -559,6 +588,7 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     if (!t) return res.status(404).json({ error: 'Ticket unbekannt' }), true
     const o = (await db('SELECT * FROM ticket_orders WHERE id = ?', [t.order_id])).rows[0]
     if (o?.payment_status !== 'paid' || t.status !== 'valid') return res.status(400).json({ error: 'Ticket ist storniert oder nicht bezahlt!' }), true
+    if (isTest(o) && !(await getSettings(db)).sandbox) return res.status(400).json({ error: 'TEST-Ticket – am echten Einlass ungültig!' }), true
     const valid = JSON.parse(t.valid_days)
     const day = String(req.body?.day || '')
     if (!valid.includes(day)) return res.status(400).json({ error: 'Ticket gilt nicht für diesen Tag!' }), true
@@ -574,16 +604,30 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     if (!(await admin())) return deny(), true
 
     if (path === '/tickets/admin/events' && method === 'GET') {
+      const st = await getSettings(db)
       const evs = (await db('SELECT * FROM events ORDER BY date DESC')).rows
       const out = []
       for (const ev of evs) {
         const cfg = await loadConfig(db, ev)
-        const counts = await soldCounts(db, ev.id)
-        const paid = await db("SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS s FROM ticket_orders WHERE event_id = ? AND payment_status = 'paid'", [ev.id])
-        const pending = await db("SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS s FROM ticket_orders WHERE event_id = ? AND payment_status = 'pending'", [ev.id])
+        const counts = await soldCounts(db, ev.id, st.sandbox)
+        const paid = await db("SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS s FROM ticket_orders WHERE event_id = ? AND payment_status = 'paid' AND COALESCE(is_test,0) = ?", [ev.id, st.sandbox ? 1 : 0])
+        const pending = await db("SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS s FROM ticket_orders WHERE event_id = ? AND payment_status = 'pending' AND COALESCE(is_test,0) = ?", [ev.id, st.sandbox ? 1 : 0])
         out.push({ id: ev.id, title: ev.title.trim(), date: ev.date, endDate: ev.end_date, days: eventDays(ev), config: cfg, counts, paid: { n: Number(paid.rows[0].n), sum: Number(paid.rows[0].s) }, pending: { n: Number(pending.rows[0].n), sum: Number(pending.rows[0].s) } })
       }
       return res.json(out), true
+    }
+
+    if (path === '/tickets/admin/sandbox') {
+      if (method === 'PUT') await db('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['ticket_sandbox', req.body?.on ? 'true' : 'false'])
+      const st = await getSettings(db)
+      const n = await db('SELECT COUNT(*) AS n FROM ticket_orders WHERE COALESCE(is_test,0) = 1')
+      return res.json({ sandbox: st.sandbox, testOrders: Number(n.rows[0].n) }), true
+    }
+
+    if (path === '/tickets/admin/test-data' && method === 'DELETE') {
+      await db('DELETE FROM tickets WHERE order_id IN (SELECT id FROM ticket_orders WHERE COALESCE(is_test,0) = 1)')
+      await db('DELETE FROM ticket_orders WHERE COALESCE(is_test,0) = 1')
+      return res.json({ ok: true }), true
     }
 
     const cfgMatch = path.match(/^\/tickets\/admin\/config\/([^/]+)$/)

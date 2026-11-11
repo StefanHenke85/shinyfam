@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, AlertTriangle, Loader2, Undo2 } from 'lucide-rea
 
 interface CheckData {
   found: boolean
+  isTest?: boolean
   code: string
   kind: 'visitor' | 'dealer'
   label: string
@@ -74,6 +75,7 @@ export default function TicketCheck() {
           {!data.found ? 'Ticket unbekannt' : data.status !== 'valid' ? 'Ungültig / storniert' : data.admin && usedToday ? 'Heute schon eingecheckt' : 'Gültiges Ticket'}
         </p>
         {data.found && <p className="text-sm opacity-90 mt-1">{data.event?.title}</p>}
+        {data.isTest && <p className="mt-2 inline-block bg-white/90 text-red-600 font-black text-sm px-3 py-1 rounded-full">🧪 TEST-TICKET</p>}
       </div>
 
       {data.found && (
