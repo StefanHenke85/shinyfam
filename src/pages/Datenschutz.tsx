@@ -93,6 +93,22 @@ export default function Datenschutz() {
           </section>
 
           <section className="card rounded-2xl p-6">
+            <h2 className="font-display font-bold text-lg section-title mb-3">5a. Online-Tickets und Standbuchungen</h2>
+            <p className="text-secondary text-sm leading-relaxed">
+              Für Ticketbestellungen und Händler-Standbuchungen speichern wir Name, E-Mail, optional Telefon,
+              bei Händlern zusätzlich Firma und Anschrift, die gebuchten Leistungen, den Zahlungsstatus sowie beim
+              Einlass den Zeitpunkt des Check-ins. Die Tickets und Bestätigungen verschicken wir per E-Mail über
+              den Versanddienst Brevo (Sendinblue GmbH, Köpenicker Str. 126, 10179 Berlin). Bei Zahlung per PayPal
+              wirst du zu PayPal (Europe) S.à r.l. et Cie, S.C.A., 22-24 Boulevard Royal, L-2449 Luxemburg
+              weitergeleitet; dort gelten die Datenschutzbestimmungen von PayPal. Bei Überweisung erhalten wir die
+              Daten aus deiner Banküberweisung (Name, Betrag, Verwendungszweck).
+              Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) und lit. c (steuerliche
+              Aufbewahrungspflichten). Bestelldaten löschen wir nach Ablauf der gesetzlichen Aufbewahrungsfristen,
+              Check-in-Daten spätestens 3 Monate nach dem Event.
+            </p>
+          </section>
+
+          <section className="card rounded-2xl p-6">
             <h2 className="font-display font-bold text-lg section-title mb-3">6. Instagram / Social Media</h2>
             <p className="text-secondary text-sm leading-relaxed">
               Wir verlinken auf unser Instagram-Profil (@shiny.fam.tcg). Beim Klick auf den Link verlässt

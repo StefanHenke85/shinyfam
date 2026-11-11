@@ -20,6 +20,10 @@ import UeberUns from './pages/UeberUns'
 import Haendler from './pages/Haendler'
 import Admin from './pages/admin/Admin'
 import MaintenancePage from './pages/MaintenancePage'
+import Tickets from './pages/Tickets'
+import TicketOrder from './pages/TicketOrder'
+import TicketCheck from './pages/TicketCheck'
+import TicketBedingungen from './pages/TicketBedingungen'
 
 function NotFound() {
   return (
@@ -98,6 +102,11 @@ export default function App() {
                       <Route path="/kontakt" element={<Kontakt />} />
                       <Route path="/impressum" element={<Impressum />} />
                       <Route path="/datenschutz" element={<Datenschutz />} />
+                      <Route path="/tickets" element={<Tickets />} />
+                      <Route path="/tickets/bestellung/:number" element={<TicketOrder />} />
+                      <Route path="/tickets/:slug" element={<Tickets />} />
+                      <Route path="/t/:code" element={<TicketCheck />} />
+                      <Route path="/ticket-bedingungen" element={<TicketBedingungen />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </main>

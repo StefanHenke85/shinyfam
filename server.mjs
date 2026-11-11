@@ -6,6 +6,8 @@ import { dirname, join } from 'path'
 import { randomBytes } from 'crypto'
 import nodeFetch from 'node-fetch'
 import https from 'https'
+import { readFileSync } from 'fs'
+import { handleTickets, ticketOgHtml } from './tickets.mjs'
 // node-fetch v3 löst zu IPv4 auf auf diesem IPv6-only Server → eigenen Agent mit IPv6 erzwingen
 const ipv6Agent = new https.Agent({ family: 6 })
 if (!globalThis.fetch) {
@@ -946,7 +948,7 @@ app.all('/api/*splat', async (req, res) => {
             sender: { name: 'ShinyFam', email: 'info@shinyfam.de' },
             to: [{ email, name }],
             subject: `Deine Anfrage für ${eventName}${dateFormatted ? ' am ' + dateFormatted : ''}`,
-            htmlContent: `<html><head><meta charset="utf-8"></head><body><p>Hallo ${name},</p><p>vielen Dank für deine Anfrage! Deine E-Mail hat uns erreicht und wir kümmern uns schnellstmöglich um dein Anliegen.</p><p><strong>Deine Angaben:</strong><br>Event: ${eventName}${dateFormatted ? '<br>Datum: ' + dateFormatted : ''}${tcg ? '<br>TCG: ' + tcg : ''}${meters ? '<br>Standfläche: ' + meters : ''}</p><p>Viele Grüße<br>Das ShinyFam-Team<br>info@shinyfam.de</p></body></html>`
+            htmlContent: `<html><head><meta charset="utf-8"></head><body><p>Hallo ${name},</p><p>vielen Dank für deine Anfrage! Deine E-Mail hat uns erreicht und wir kümmern uns schnellstmöglich um dein Anliegen.</p><p><strong>Deine Angaben:</strong><br>Event: ${eventName}${dateFormatted ? '<br>Datum: ' + dateFormatted : ''}${tcg ? '<br>TCG: ' + tcg : ''}${meters ? '<br>Standfläche: ' + meters : ''}</p><p style="background:#fff7e6;border:1px solid #f5c26b;border-radius:8px;padding:10px 12px"><strong>Bitte beachten – Unratkaution:</strong> Vor Ort nehmen wir eine Kaution von <strong>10 € in bar</strong>. Du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.</p><p>Viele Grüße<br>Das ShinyFam-Team<br>info@shinyfam.de</p></body></html>`
           })
         }).catch(() => {})
       }
@@ -1498,6 +1500,9 @@ app.all('/api/*splat', async (req, res) => {
       return res.json({ ok: true })
     }
 
+    // Online-Tickets (Besucher + Haendlerstaende), siehe tickets.mjs
+    if (await handleTickets(req, res, path, method, { dbExecute, isAdmin, notifyWhatsApp })) return
+
     return res.status(404).json({ error: 'Not found', path })
   } catch (err) {
     console.error(err)
@@ -1507,7 +1512,14 @@ app.all('/api/*splat', async (req, res) => {
 
 // Static frontend
 app.use(express.static(join(__dirname, 'dist')))
-app.get('*splat', (req, res) => {
+app.get('*splat', async (req, res) => {
+  // Ticket-Kurzlinks bekommen eigene Vorschau-Texte (Instagram/Facebook/WhatsApp)
+  if (req.path.startsWith('/tickets/')) {
+    try {
+      const html = await ticketOgHtml(dbExecute, req.path, readFileSync(join(__dirname, 'dist', 'index.html'), 'utf8'))
+      if (html) return res.type('html').send(html)
+    } catch { /* normaler Fallback */ }
+  }
   res.sendFile(join(__dirname, 'dist', 'index.html'))
 })
 

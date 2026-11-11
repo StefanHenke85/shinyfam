@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MapPin, Calendar, Tag, Ticket, Clock, ExternalLink, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { de, enUS } from 'date-fns/locale'
@@ -10,9 +11,22 @@ import { useTheme } from '../contexts/ThemeContext'
 
 interface Props { event: TCGEvent }
 
+// Online-Ticketverkauf (tickets.mjs): einmal pro Seitenaufruf laden
+type ShopEntry = { eventId: string; slug: string; visitorEnabled: boolean; dealerEnabled: boolean; open: boolean }
+let shopPromise: Promise<ShopEntry[]> | null = null
+function useTicketShop(eventId: string) {
+  const [entry, setEntry] = useState<ShopEntry | null>(null)
+  useEffect(() => {
+    shopPromise ||= fetch('/api/tickets/shop').then(r => r.json()).then(d => (Array.isArray(d) ? d : [])).catch(() => [])
+    shopPromise.then(list => setEntry(list.find(e => e.eventId === eventId && e.open) || null))
+  }, [eventId])
+  return entry
+}
+
 export default function EventCard({ event }: Props) {
   const { lang, t } = useTheme()
   const [showInquiry, setShowInquiry] = useState(false)
+  const shop = useTicketShop(event.id)
   const eventDate = new Date(event.date)
   const endDate = event.endDate ? new Date(event.endDate) : null
   const isPast = eventDate < new Date()
@@ -129,7 +143,12 @@ export default function EventCard({ event }: Props) {
           </div>
         )}
 
-        {event.ticketUrl ? (
+        {!isPast && shop?.visitorEnabled ? (
+          <Link to={`/tickets/${shop.slug}`} className="btn-primary text-sm w-full justify-center">
+            <Ticket size={14} aria-hidden="true" />
+            Tickets online kaufen{event.entryFee ? ` · ${event.entryFee.toFixed(2)} €` : ''}
+          </Link>
+        ) : event.ticketUrl ? (
           <a href={event.ticketUrl} target="_blank" rel="noopener noreferrer"
             className="btn-primary text-sm w-full justify-center">
             <Ticket size={14} aria-hidden="true" />
@@ -156,6 +175,12 @@ export default function EventCard({ event }: Props) {
                   <div className="h-full rounded-full bg-accent-purple transition-all w-0" />
                 </div>
               </div>
+            )}
+            {shop?.dealerEnabled && (
+              <Link to={`/tickets/${shop.slug}`} className="btn-primary text-sm w-full justify-center mt-2 flex items-center gap-2">
+                <Users size={13} aria-hidden="true" />
+                Händlerstand online buchen
+              </Link>
             )}
             <button
               type="button"
