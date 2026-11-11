@@ -8,6 +8,7 @@ interface VisitorOption { key: string; label: string; price: number; enabled: bo
 interface Config {
   slug: string; visitorEnabled: boolean; visitorOptions: VisitorOption[]; visitorLimit: number | null; visitorInfo: string
   dealerEnabled: boolean; dealerMeterOptions: number[]; dealerDayOptions: string[]; dealerPricePerMeterDay: number | null; dealerLimit: number | null
+  dealerTables?: { length: number; count: number }[]; dealerMaxMeters?: number | null
   depositAmount: number; salesEnd: string | null; paypalEnabled: boolean; transferEnabled: boolean; saved?: boolean
 }
 interface EventRow { id: string; title: string; date: string; endDate: string | null; days: { key: string; label: string }[]; config: Config; counts: { visitors: number; dealers: number }; paid: { n: number; sum: number }; pending: { n: number; sum: number } }
@@ -257,10 +258,26 @@ function ConfigForm({ token, ev, onSaved }: { token: string; ev: EventRow; onSav
       <div className="card rounded-xl p-4 flex flex-col gap-3">
         <label className={chk + ' font-bold'}><input type="checkbox" checked={c.dealerEnabled} onChange={e => setC({ ...c, dealerEnabled: e.target.checked })} /> 🏪 Händlerstände online buchbar</label>
         <div className="grid md:grid-cols-2 gap-3">
-          <div><label className="text-secondary text-xs block mb-1">Buchbare Meter (z.B. 2, 3, 4)</label><input className={inputCls} value={meters} onChange={e => setMeters(e.target.value)} /></div>
+          {!(c.dealerTables || []).length && <div><label className="text-secondary text-xs block mb-1">Buchbare Meter (z.B. 2, 3, 4) – nur ohne Tischliste</label><input className={inputCls} value={meters} onChange={e => setMeters(e.target.value)} /></div>}
+          <div><label className="text-secondary text-xs block mb-1">Max. Meter pro Händler</label><input type="number" step="0.1" className={inputCls} value={c.dealerMaxMeters ?? ''} onChange={e => setC({ ...c, dealerMaxMeters: e.target.value ? Number(e.target.value) : null })} /></div>
           <div><label className="text-secondary text-xs block mb-1">Preis pro Meter und Tag (€)</label><input type="number" step="0.5" className={inputCls} value={c.dealerPricePerMeterDay ?? ''} onChange={e => setC({ ...c, dealerPricePerMeterDay: e.target.value ? Number(e.target.value) : null })} /></div>
           <div><label className="text-secondary text-xs block mb-1">Max. Online-Stände (leer = unbegrenzt)</label><input type="number" className={inputCls} value={c.dealerLimit ?? ''} onChange={e => setC({ ...c, dealerLimit: e.target.value ? Number(e.target.value) : null })} /></div>
           <div><label className="text-secondary text-xs block mb-1">Unratütox-Gebühr bar vor Ort (€)</label><input type="number" step="1" className={inputCls} value={c.depositAmount} onChange={e => setC({ ...c, depositAmount: Number(e.target.value) })} /></div>
+        </div>
+        <div className="rounded-xl border border-theme p-3 flex flex-col gap-2">
+          <p className="text-primary text-sm font-semibold">Tische für dieses Event (online buchbar)</p>
+          <p className="text-muted text-xs">Z.B. 13× 1,4 m und 16× 1,8 m. Händler wählen dann Tische statt Meter, belegte Tische werden automatisch abgezogen (pro Tag). Leer lassen = alte Meter-Auswahl.</p>
+          {(c.dealerTables || []).map((t, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm">
+              <input type="number" min="1" className={inputCls + ' w-24'} value={t.count} onChange={e => { const v = [...(c.dealerTables || [])]; v[i] = { ...t, count: Number(e.target.value) }; setC({ ...c, dealerTables: v }) }} />
+              <span className="text-secondary">× Tisch</span>
+              <input type="number" step="0.1" min="0.1" className={inputCls + ' w-24'} value={t.length} onChange={e => { const v = [...(c.dealerTables || [])]; v[i] = { ...t, length: Number(e.target.value) }; setC({ ...c, dealerTables: v }) }} />
+              <span className="text-secondary">m</span>
+              <button type="button" className="btn-outline text-xs" onClick={() => setC({ ...c, dealerTables: (c.dealerTables || []).filter((_, j) => j !== i) })}>entfernen</button>
+            </div>
+          ))}
+          <button type="button" className="btn-outline text-xs self-start" onClick={() => setC({ ...c, dealerTables: [...(c.dealerTables || []), { length: 1.8, count: 10 }] })}>+ Tischgröße hinzufügen</button>
+          {(c.dealerTables || []).length > 0 && <p className="text-secondary text-xs">Gesamt: {(c.dealerTables || []).reduce((s, t) => s + t.length * t.count, 0).toFixed(1).replace('.', ',')} m</p>}
         </div>
         <div className="flex flex-wrap gap-3">
           {dayOpts.map(([k, l]) => (

@@ -80,6 +80,10 @@ function defaultConfig(ev) {
     dealerDayOptions: allowed && allowed.length ? allowed : (days.length > 1 ? ['beide', 'tag1', 'tag2'] : ['tag1']),
     dealerPricePerMeterDay: ev.price_per_meter_day != null ? Number(ev.price_per_meter_day) : null,
     dealerLimit: null,
+    // Tischbestand pro Event (12.11.2026): [{ length: 1.2, count: 40 }, ...].
+    // Ist er gesetzt, waehlen Haendler Tische statt Meter.
+    dealerTables: [],
+    dealerMaxMeters: 6,
     depositAmount: 10,
     salesEnd: ev.date || null,
     paypalEnabled: true,
@@ -138,11 +142,37 @@ async function getSettings(db) {
 async function soldCounts(db, eventId, sandbox = false) {
   const r = await db("SELECT kind, items FROM ticket_orders WHERE event_id = ? AND payment_status != 'cancelled' AND COALESCE(is_test,0) = ?", [eventId, sandbox ? 1 : 0])
   let visitors = 0, dealers = 0
+  const tableUse = { tag1: {}, tag2: {} } // tag -> laenge -> belegte Tische
   for (const row of r.rows) {
-    if (row.kind === 'dealer') { dealers++; continue }
+    if (row.kind === 'dealer') {
+      dealers++
+      try {
+        for (const it of JSON.parse(row.items)) {
+          for (const t of it.tables || []) {
+            for (const day of it.days || []) {
+              const k = String(Number(t.length))
+              tableUse[day] ||= {}
+              tableUse[day][k] = (tableUse[day][k] || 0) + Number(t.qty || 0)
+            }
+          }
+        }
+      } catch { /* */ }
+      continue
+    }
     try { for (const it of JSON.parse(row.items)) visitors += Number(it.qty || 0) } catch { /* */ }
   }
-  return { visitors, dealers }
+  return { visitors, dealers, tableUse }
+}
+
+const fmtM = (n) => String(Math.round(Number(n) * 100) / 100).replace('.', ',')
+
+// Freie Tische je Laenge fuer eine Tageskombination (Minimum ueber die Tage)
+function tablesFree(cfg, counts, days) {
+  return (cfg.dealerTables || []).map((t) => {
+    const k = String(Number(t.length))
+    const used = Math.max(0, ...days.map((d) => counts.tableUse?.[d]?.[k] || 0))
+    return { length: Number(t.length), total: Number(t.count), free: Math.max(0, Number(t.count) - used) }
+  })
 }
 
 function salesOpen(cfg) {
@@ -396,6 +426,8 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
         dayOptions: cfg.dealerDayOptions.map((k) => ({ key: k, label: dayLabel(ev, k), days: daysForKey(k).length })),
         pricePerMeterDay: cfg.dealerPricePerMeterDay,
         remaining: cfg.dealerLimit ? Math.max(0, cfg.dealerLimit - counts.dealers) : null,
+        maxMeters: Number(cfg.dealerMaxMeters || 0) || null,
+        tables: (cfg.dealerTables || []).length ? Object.fromEntries(cfg.dealerDayOptions.map((k) => [k, tablesFree(cfg, counts, daysForKey(k))])) : null,
         depositAmount: Number(cfg.depositAmount || 0),
       } : null,
       sandbox: settings.sandbox,
@@ -440,10 +472,26 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     } else {
       if (!cfg.dealerEnabled || ev.sold_out_label) return res.status(400).json({ error: 'Die Online-Standbuchung ist für dieses Event nicht verfügbar.' }), true
       if (cfg.dealerLimit && counts.dealers >= cfg.dealerLimit) return res.status(400).json({ error: 'Leider sind alle online buchbaren Stände vergeben.' }), true
-      const meters = Number(b.meters)
       const dayKey = String(b.days || '')
-      if (!cfg.dealerMeterOptions.map(Number).includes(meters)) return res.status(400).json({ error: 'Diese Standgröße ist nicht buchbar.' }), true
       if (!cfg.dealerDayOptions.includes(dayKey)) return res.status(400).json({ error: 'Diese Teilnahme-Option ist nicht buchbar.' }), true
+      let meters = Number(b.meters)
+      let tables = null
+      if ((cfg.dealerTables || []).length) {
+        // Tischmodus: b.tables = { "1.2": 3, "1.8": 1 }
+        const want = b.tables && typeof b.tables === 'object' ? b.tables : {}
+        const free = tablesFree(cfg, counts, daysForKey(dayKey))
+        tables = []
+        for (const t of free) {
+          const q = Math.max(0, Math.min(20, parseInt(want[String(t.length)] || 0, 10) || 0))
+          if (!q) continue
+          if (q > t.free) return res.status(400).json({ error: `Von den ${fmtM(t.length)}-m-Tischen sind nur noch ${t.free} frei.` }), true
+          tables.push({ length: t.length, qty: q })
+        }
+        if (!tables.length) return res.status(400).json({ error: 'Bitte mindestens einen Tisch auswählen.' }), true
+        meters = Math.round(tables.reduce((s, t) => s + t.length * t.qty, 0) * 100) / 100
+        const maxM = Number(cfg.dealerMaxMeters || 0)
+        if (maxM && meters > maxM + 0.001) return res.status(400).json({ error: `Maximal ${fmtM(maxM)} m pro Händler.` }), true
+      } else if (!cfg.dealerMeterOptions.map(Number).includes(meters)) return res.status(400).json({ error: 'Diese Standgröße ist nicht buchbar.' }), true
       if (cfg.dealerPricePerMeterDay == null) return res.status(400).json({ error: 'Für dieses Event ist noch kein Standpreis hinterlegt.' }), true
       const street = String(b.street || '').trim(), zipCity = String(b.zipCity || '').trim()
       const customerType = b.customerType === 'privat' ? 'privat' : 'gewerblich'
@@ -451,8 +499,9 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
       if (!street || !zipCity || (customerType === 'gewerblich' && !company)) return res.status(400).json({ error: 'Bitte Adresse' + (customerType === 'gewerblich' ? ' und Firmenname' : '') + ' angeben.' }), true
       const nDays = daysForKey(dayKey).length
       const price = Math.round(Number(cfg.dealerPricePerMeterDay) * meters * nDays * 100) / 100
-      items = [{ key: dayKey, label: `Händlerstand ${meters} m – ${dayLabel(ev, dayKey)}`, price, qty: 1, days: daysForKey(dayKey), meters }]
-      extra = { company, street, zipCity, customerType, tcg: String(b.tcg || '').slice(0, 80), message: String(b.message || '').slice(0, 1000), logoUrl: typeof b.logoUrl === 'string' && b.logoUrl.length < 400000 ? b.logoUrl : null, meters, dayKey, nDays }
+      const tablesText = tables ? tables.map((t) => `${t.qty}× ${fmtM(t.length)} m`).join(' + ') : ''
+      items = [{ key: dayKey, label: `Händlerstand ${fmtM(meters)} m${tables ? ` (${tablesText})` : ''} – ${dayLabel(ev, dayKey)}`, price, qty: 1, days: daysForKey(dayKey), meters, ...(tables ? { tables } : {}) }]
+      extra = { company, street, zipCity, customerType, tcg: String(b.tcg || '').slice(0, 80), message: String(b.message || '').slice(0, 1000), logoUrl: typeof b.logoUrl === 'string' && b.logoUrl.length < 400000 ? b.logoUrl : null, meters, dayKey, nDays, tablesText }
     }
 
     const total = Math.round(items.reduce((s, i) => s + i.price * i.qty, 0) * 100) / 100
@@ -471,7 +520,7 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
     if (kind === 'dealer' && !settings.sandbox) {
       // normale Haendleranfrage mitfuehren (Rechnung, Logo, Haendlerliste)
       await db('INSERT INTO event_inquiries (name,email,event_name,event_date,tcg,meters,message,attendance_days,logo_url,company,phone,street,zip_city,meters_num,days_count,customer_type,ticket_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [name, email, ev.title, ev.date, extra.tcg || null, `${extra.meters}m`, `[Online-Buchung ${orderNumber}, ${pm === 'paypal' ? 'PayPal' : 'Überweisung'}, ${euro(total)}, noch nicht bezahlt]${extra.message ? '\n' + extra.message : ''}`, extra.dayKey, extra.logoUrl, extra.company || null, phone, extra.street, extra.zipCity, extra.meters, extra.nDays, extra.customerType, orderNumber]).catch((e) => console.error('[tickets] inquiry', e))
+        [name, email, ev.title, ev.date, extra.tcg || null, `${fmtM(extra.meters)}m${extra.tablesText ? ' (' + extra.tablesText + ')' : ''}`, `[Online-Buchung ${orderNumber}, ${pm === 'paypal' ? 'PayPal' : 'Überweisung'}, ${euro(total)}, noch nicht bezahlt]${extra.message ? '\n' + extra.message : ''}`, extra.dayKey, extra.logoUrl, extra.company || null, phone, extra.street, extra.zipCity, extra.meters, extra.nDays, extra.customerType, orderNumber]).catch((e) => console.error('[tickets] inquiry', e))
       const inq = await db('SELECT id FROM event_inquiries WHERE ticket_order = ? ORDER BY id DESC LIMIT 1', [orderNumber]).catch(() => ({ rows: [] }))
       if (inq.rows[0]) await db('UPDATE ticket_orders SET inquiry_id = ? WHERE id = ?', [inq.rows[0].id, order.id])
       const brandName = extra.customerType === 'gewerblich' ? extra.company : name
@@ -652,6 +701,8 @@ export async function handleTickets(req, res, path, method, { dbExecute: db, isA
         dealerDayOptions: (Array.isArray(b.dealerDayOptions) ? b.dealerDayOptions : []).filter((k) => ['tag1', 'tag2', 'beide'].includes(k)),
         dealerPricePerMeterDay: num(b.dealerPricePerMeterDay),
         dealerLimit: num(b.dealerLimit),
+        dealerTables: (Array.isArray(b.dealerTables) ? b.dealerTables : []).map((t) => ({ length: num(t.length), count: parseInt(t.count, 10) || 0 })).filter((t) => t.length > 0 && t.length <= 10 && t.count > 0).slice(0, 10),
+        dealerMaxMeters: num(b.dealerMaxMeters),
         depositAmount: num(b.depositAmount) ?? 0,
         salesEnd: b.salesEnd || null,
         paypalEnabled: !!b.paypalEnabled,

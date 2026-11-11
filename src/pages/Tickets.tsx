@@ -14,7 +14,7 @@ interface ShopData {
   open: boolean
   preview: boolean
   visitor: { enabled: boolean; options: { key: string; label: string; price: number }[]; remaining: number | null; info: string } | null
-  dealer: { enabled: boolean; meterOptions: number[]; dayOptions: { key: string; label: string; days: number }[]; pricePerMeterDay: number | null; remaining: number | null; depositAmount: number } | null
+  dealer: { enabled: boolean; meterOptions: number[]; dayOptions: { key: string; label: string; days: number }[]; pricePerMeterDay: number | null; remaining: number | null; depositAmount: number; maxMeters?: number | null; tables?: Record<string, { length: number; total: number; free: number }[]> | null } | null
   payment: { paypal: boolean; transfer: boolean }
   sandbox?: boolean
 }
@@ -160,14 +160,21 @@ function DealerForm({ data }: { data: ShopData }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const nDays = d.dayOptions.find(o => o.key === days)?.days || 1
-  const price = d.pricePerMeterDay != null ? Math.round(d.pricePerMeterDay * meters * nDays * 100) / 100 : null
+  // Tischmodus: Haendler waehlen Tische je Laenge
+  const tableList = d.tables ? (d.tables[days] || []) : null
+  const [tableQty, setTableQty] = useState<Record<string, number>>({})
+  const tableMeters = tableList ? Math.round(tableList.reduce((s, t) => s + t.length * (tableQty[String(t.length)] || 0), 0) * 100) / 100 : 0
+  const effMeters = tableList ? tableMeters : meters
+  const tooMuch = !!(tableList && d.maxMeters && tableMeters > d.maxMeters + 0.001)
+  const price = d.pricePerMeterDay != null ? Math.round(d.pricePerMeterDay * effMeters * nDays * 100) / 100 : null
+  const fm = (n: number) => String(n).replace('.', ',')
   const isCommercial = form.customerType === 'gewerblich'
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setErr(''); setBusy(true)
     try {
-      const r = await fetch('/api/tickets/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'dealer', eventId: data.event.id, ...form, company: isCommercial ? form.company : '', zipCity: `${form.zip.trim()} ${form.city.trim()}`.trim(), meters, days, paymentMethod: pm, acceptTerms: terms }) })
+      const r = await fetch('/api/tickets/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'dealer', eventId: data.event.id, ...form, company: isCommercial ? form.company : '', zipCity: `${form.zip.trim()} ${form.city.trim()}`.trim(), meters, tables: tableList ? tableQty : undefined, days, paymentMethod: pm, acceptTerms: terms }) })
       const res = await r.json()
       if (!r.ok) throw new Error(res.error || 'Fehler')
       nav(`/tickets/bestellung/${res.orderNumber}?k=${res.key}`)
@@ -177,12 +184,14 @@ function DealerForm({ data }: { data: ShopData }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       <div className="grid sm:grid-cols-2 gap-3">
+        {!tableList && (
         <div>
           <label className="text-secondary text-xs mb-1 block">Standgröße *</label>
           <select className={inputCls} value={meters} onChange={e => setMeters(Number(e.target.value))} disabled={d.meterOptions.length < 2}>
             {d.meterOptions.map(m => <option key={m} value={m}>{m} Meter</option>)}
           </select>
         </div>
+        )}
         <div>
           <label className="text-secondary text-xs mb-1 block">Teilnahme *</label>
           <select className={inputCls} value={days} onChange={e => setDays(e.target.value)} disabled={d.dayOptions.length < 2}>
@@ -190,8 +199,28 @@ function DealerForm({ data }: { data: ShopData }) {
           </select>
         </div>
       </div>
-      {price != null && (
-        <p className="text-primary text-sm">Standgebühr: <strong>{euro(price)}</strong> <span className="text-muted">({meters} m × {nDays} Tag{nDays > 1 ? 'e' : ''} × {euro(d.pricePerMeterDay!)})</span></p>
+      {tableList && (
+        <div className="rounded-xl border border-theme p-3 flex flex-col gap-2">
+          <p className="text-secondary text-xs">Tische auswählen *{d.maxMeters ? ` (max. ${fm(d.maxMeters)} m pro Händler)` : ''}</p>
+          {tableList.map(t => {
+            const k = String(t.length)
+            const q = tableQty[k] || 0
+            return (
+              <div key={k} className="flex items-center gap-3 text-sm">
+                <span className="text-primary font-semibold w-28">Tisch {fm(t.length)} m</span>
+                <button type="button" className="btn-outline px-3 py-1" disabled={q <= 0} onClick={() => setTableQty({ ...tableQty, [k]: q - 1 })}>−</button>
+                <span className="text-primary font-bold w-6 text-center">{q}</span>
+                <button type="button" className="btn-outline px-3 py-1" disabled={q >= t.free || (!!d.maxMeters && tableMeters + t.length > d.maxMeters + 0.001)} onClick={() => setTableQty({ ...tableQty, [k]: q + 1 })}>+</button>
+                <span className="text-muted text-xs">{t.free > 0 ? `noch ${t.free} frei` : 'ausgebucht'}</span>
+              </div>
+            )
+          })}
+          <p className="text-primary text-sm">Deine Standlänge: <strong>{fm(tableMeters)} m</strong></p>
+          {tooMuch && <p className="text-red-500 text-xs">Maximal {fm(d.maxMeters!)} m pro Händler.</p>}
+        </div>
+      )}
+      {price != null && effMeters > 0 && (
+        <p className="text-primary text-sm">Standgebühr: <strong>{euro(price)}</strong> <span className="text-muted">({fm(effMeters)} m × {nDays} Tag{nDays > 1 ? 'e' : ''} × {euro(d.pricePerMeterDay!)})</span></p>
       )}
       {d.depositAmount > 0 && (
         <div className="rounded-xl border border-amber-400/60 bg-amber-400/10 p-3 text-sm text-primary">
@@ -226,7 +255,7 @@ function DealerForm({ data }: { data: ShopData }) {
       <PaymentChoice value={pm} onChange={setPm} payment={data.payment} />
       <Terms checked={terms} onChange={setTerms} dealer />
       {err && <p className="text-red-500 text-sm">{err}</p>}
-      <button type="submit" disabled={busy || price == null} className="btn-primary flex items-center justify-center gap-2">
+      <button type="submit" disabled={busy || price == null || effMeters <= 0 || tooMuch} className="btn-primary flex items-center justify-center gap-2">
         {busy ? <Loader2 size={16} className="animate-spin" /> : <Store size={16} />}
         {price != null ? `Stand verbindlich buchen – ${euro(price)}` : 'Standpreis fehlt noch'}
       </button>
