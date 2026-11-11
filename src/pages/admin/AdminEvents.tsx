@@ -144,6 +144,15 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 
+  async function toggleSoldOut(id: string, soldOut: boolean) {
+    await fetch(`/api/events/${encodeURIComponent(id)}/soldout`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ soldOut }),
+    })
+    load()
+  }
+
   async function load() {
     setLoading(true)
     const res = await fetch('/api/events', { headers: { Authorization: `Bearer ${token}` } })
@@ -480,6 +489,12 @@ ${tags} #ShinyFam #TCG #PokémonTCG #NRW #Niederrhein`
                   )}
                 </div>
               </div>
+              <label className={`flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg border cursor-pointer shrink-0 ${(ev as unknown as { soldOutLabel?: string | null }).soldOutLabel ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-theme text-muted'}`}
+                title="Händleranfragen sperren und auf der Webseite 'Händler sold out' anzeigen">
+                <input type="checkbox" checked={!!(ev as unknown as { soldOutLabel?: string | null }).soldOutLabel}
+                  onChange={e => toggleSoldOut(ev.id, e.target.checked)} />
+                Händler ausverkauft
+              </label>
               <button type="button" onClick={() => setPromoEvent(ev)}
                 className="icon-btn text-muted hover:text-accent-pink shrink-0"
                 aria-label="Event bewerben" title="Event bewerben">
