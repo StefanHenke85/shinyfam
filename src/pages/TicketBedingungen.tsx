@@ -37,11 +37,11 @@ export default function TicketBedingungen() {
             </p>
           </section>
           <section className={sec}>
-            <h2 className={h}>5. Händlerstände und Unratkaution</h2>
+            <h2 className={h}>5. Händlerstände und Unratütox-Gebühr</h2>
             <p className={p}>
-              Die gebuchte Standfläche wird dir vor Ort zugewiesen. Für jeden Stand nehmen wir vor Ort eine <strong className="section-title">Unratkaution
+              Die gebuchte Standfläche wird dir vor Ort zugewiesen. Für jeden Stand nehmen wir vor Ort eine <strong className="section-title">Unratütox-Gebühr
               (in der Regel 10 €) in bar</strong>. Sie wird nach der Veranstaltung zurückgezahlt, wenn die Standfläche sauber und ordentlich
-              hinterlassen wurde (Müll entfernt, Tische und Boden frei). Andernfalls behalten wir die Kaution für den Reinigungsaufwand ein.
+              hinterlassen wurde (Müll entfernt, Tische und Boden frei). Andernfalls behalten wir die Unratütox-Gebühr für den Reinigungsaufwand ein.
               Bei Nichterscheinen ohne Absage bis 7 Tage vor dem Event wird die Standgebühr nicht erstattet.
             </p>
           </section>

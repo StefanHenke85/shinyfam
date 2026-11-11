@@ -108,7 +108,7 @@ export default function TicketCheck() {
 
       {data.admin && data.deposit && data.deposit.amount > 0 && (
         <div className="rounded-2xl border border-amber-400/60 bg-amber-400/10 p-5 mb-4">
-          <p className="font-bold text-primary mb-1">Unratkaution {data.deposit.amount.toFixed(2).replace('.', ',')} € (bar)</p>
+          <p className="font-bold text-primary mb-1">Unratütox-Gebühr {data.deposit.amount.toFixed(2).replace('.', ',')} € (bar)</p>
           <p className="text-secondary text-sm mb-3">Status: {data.deposit.status === 'received' ? '✅ erhalten' : data.deposit.status === 'returned' ? '↩️ zurückgegeben' : data.deposit.status === 'kept' ? '❌ einbehalten' : '⏳ noch nicht kassiert'}</p>
           <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={() => setDeposit('received')} className="btn-outline text-xs px-2">Erhalten</button>

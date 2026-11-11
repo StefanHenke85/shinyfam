@@ -60,7 +60,7 @@ export default function AdminTickets({ token }: { token: string }) {
       )}
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {([['orders', 'Bestellungen'], ['deposit', 'Händler & Kaution'], ['config', 'Verkauf einrichten'], ['bank', 'Bank & PayPal']] as const).map(([k, l]) => (
+        {([['orders', 'Bestellungen'], ['deposit', 'Händler & Unratütox'], ['config', 'Verkauf einrichten'], ['bank', 'Bank & PayPal']] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setView(k)} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${view === k ? 'border-accent-purple bg-accent-purple/10 text-primary' : 'border-theme text-secondary'}`}>{l}</button>
         ))}
       </div>
@@ -159,13 +159,13 @@ function Deposits({ token, eventId }: { token: string; eventId: string }) {
   return (
     <div>
       <p className="text-secondary text-sm mb-3">
-        Alle Händler dieses Events (Online-Buchungen und normale Anfragen, ohne abgelehnte). Kaution {euro(data.amount)} bar ·
+        Alle Händler dieses Events (Online-Buchungen und normale Anfragen, ohne abgelehnte). Unratütox-Gebühr {euro(data.amount)} bar ·
         kassiert {c('received')} · zurück {c('returned')} · einbehalten {c('kept')} · offen {c(null)} ·
         <strong className="text-primary"> Kasse aktuell: {euro((c('received') + c('kept')) * data.amount)}</strong>
       </p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead><tr className="text-left text-muted text-xs"><th className="py-2 pr-2">Händler</th><th className="pr-2">Stand</th><th className="pr-2">Status</th><th>Kaution</th></tr></thead>
+          <thead><tr className="text-left text-muted text-xs"><th className="py-2 pr-2">Händler</th><th className="pr-2">Stand</th><th className="pr-2">Status</th><th>Unratütox</th></tr></thead>
           <tbody>
             {data.dealers.map(d => (
               <tr key={d.id} className="border-t border-theme">
@@ -235,7 +235,7 @@ function ConfigForm({ token, ev, onSaved }: { token: string; ev: EventRow; onSav
           <div><label className="text-secondary text-xs block mb-1">Buchbare Meter (z.B. 2, 3, 4)</label><input className={inputCls} value={meters} onChange={e => setMeters(e.target.value)} /></div>
           <div><label className="text-secondary text-xs block mb-1">Preis pro Meter und Tag (€)</label><input type="number" step="0.5" className={inputCls} value={c.dealerPricePerMeterDay ?? ''} onChange={e => setC({ ...c, dealerPricePerMeterDay: e.target.value ? Number(e.target.value) : null })} /></div>
           <div><label className="text-secondary text-xs block mb-1">Max. Online-Stände (leer = unbegrenzt)</label><input type="number" className={inputCls} value={c.dealerLimit ?? ''} onChange={e => setC({ ...c, dealerLimit: e.target.value ? Number(e.target.value) : null })} /></div>
-          <div><label className="text-secondary text-xs block mb-1">Unratkaution bar vor Ort (€)</label><input type="number" step="1" className={inputCls} value={c.depositAmount} onChange={e => setC({ ...c, depositAmount: Number(e.target.value) })} /></div>
+          <div><label className="text-secondary text-xs block mb-1">Unratütox-Gebühr bar vor Ort (€)</label><input type="number" step="1" className={inputCls} value={c.depositAmount} onChange={e => setC({ ...c, depositAmount: Number(e.target.value) })} /></div>
         </div>
         <div className="flex flex-wrap gap-3">
           {dayOpts.map(([k, l]) => (

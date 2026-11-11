@@ -95,7 +95,7 @@ export default function TicketOrder() {
 
       {data.depositAmount > 0 && o.paymentStatus !== 'cancelled' && (
         <div className="rounded-xl border border-amber-400/60 bg-amber-400/10 p-4 text-sm text-primary mb-5">
-          <strong>Unratkaution: {euro(data.depositAmount)} in bar mitbringen.</strong> Du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.
+          <strong>Unratütox-Gebühr: {euro(data.depositAmount)} in bar mitbringen.</strong> Du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.
         </div>
       )}
 

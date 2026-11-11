@@ -81,7 +81,7 @@ function Terms({ checked, onChange, dealer }: { checked: boolean; onChange: (v: 
       <input type="checkbox" required checked={checked} onChange={e => onChange(e.target.checked)} className="mt-0.5" />
       <span>
         Ich akzeptiere die <Link to="/ticket-bedingungen" target="_blank" className="text-accent-purple underline">Ticket- und Teilnahmebedingungen</Link>
-        {dealer ? ' (inkl. Unratkaution)' : ''} und habe die <Link to="/datenschutz" target="_blank" className="text-accent-purple underline">Datenschutzerklärung</Link> gelesen.
+        {dealer ? ' (inkl. Unratütox-Gebühr)' : ''} und habe die <Link to="/datenschutz" target="_blank" className="text-accent-purple underline">Datenschutzerklärung</Link> gelesen.
         Mir ist bekannt, dass bei Tickets für einen festen Veranstaltungstermin kein Widerrufsrecht besteht (§ 312g Abs. 2 Nr. 9 BGB).
       </span>
     </label>
@@ -194,7 +194,7 @@ function DealerForm({ data }: { data: ShopData }) {
       )}
       {d.depositAmount > 0 && (
         <div className="rounded-xl border border-amber-400/60 bg-amber-400/10 p-3 text-sm text-primary">
-          <strong>Unratkaution: {euro(d.depositAmount)} in bar vor Ort.</strong> Bitte passend mitbringen – du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.
+          <strong>Unratütox-Gebühr: {euro(d.depositAmount)} in bar vor Ort.</strong> Bitte passend mitbringen – du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.
         </div>
       )}
       <div className="flex gap-2">

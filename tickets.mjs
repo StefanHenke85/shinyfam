@@ -12,7 +12,7 @@
 //
 // Haendler: Standbuchung legt zusaetzlich eine normale Haendleranfrage
 // (event_inquiries) an, damit Rechnungen, Logos und Haendlerlisten wie
-// gewohnt funktionieren. Unratkaution (Standard 10 EUR) wird bar vor Ort
+// gewohnt funktionieren. Unratütox-Gebühr (Standard 10 EUR) wird bar vor Ort
 // kassiert und pro Haendler im Admin abgehakt (erhalten/zurueck/einbehalten).
 
 import { randomBytes } from 'crypto'
@@ -202,7 +202,7 @@ function itemsHtml(items) {
 function depositHtml(cfg) {
   const amount = cfg?.depositAmount != null ? Number(cfg.depositAmount) : 10
   if (!amount) return ''
-  return `<p style="background:#fff7e6;border:1px solid #f5c26b;border-radius:8px;padding:10px 12px"><strong>Wichtig – Unratkaution:</strong> Vor Ort nehmen wir eine Kaution von <strong>${euro(amount)} in bar</strong>. Bitte passend mitbringen. Du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.</p>`
+  return `<p style="background:#fff7e6;border:1px solid #f5c26b;border-radius:8px;padding:10px 12px"><strong>Wichtig – Unratütox-Gebühr:</strong> Vor Ort nehmen wir eine Unratütox-Gebühr von <strong>${euro(amount)} in bar</strong>. Bitte passend mitbringen. Du bekommst sie nach der Messe zurück, wenn deine Standfläche sauber und ordentlich hinterlassen wurde.</p>`
 }
 
 async function mailOrderReceived(order, ev, cfg, settings) {
@@ -262,7 +262,7 @@ async function buildTicketsPdf(order, ev, tickets, cfg) {
       doc.fontSize(9).fillColor('#8a90a8').font('Helvetica').text('Ticket-Code (falls der QR-Code nicht lesbar ist)', 310, 368)
       if (t.kind === 'dealer' && cfg?.depositAmount) {
         doc.roundedRect(310, 400, W - 380, 80, 8).fill('#fff7e6')
-        doc.fontSize(10).fillColor('#8a5a00').font('Helvetica-Bold').text(`Unratkaution ${euro(cfg.depositAmount)} in bar mitbringen`, 320, 410, { width: W - 400 })
+        doc.fontSize(10).fillColor('#8a5a00').font('Helvetica-Bold').text(`Unratütox-Gebühr ${euro(cfg.depositAmount)} in bar mitbringen`, 320, 410, { width: W - 400 })
         doc.fontSize(9).font('Helvetica').text('Rückgabe nach der Messe, wenn die Standfläche sauber und ordentlich hinterlassen wurde.', 320, 428, { width: W - 400 })
       }
       doc.fontSize(9).fillColor('#4a5070').font('Helvetica').text('Bitte dieses Ticket ausgedruckt oder auf dem Handy am Einlass vorzeigen. Jeder QR-Code ist nur einmal pro Tag gültig. Weitergabe nur unverändert erlaubt; der erste Scan zählt.', 50, 525, { width: W - 100 })
