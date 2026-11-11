@@ -506,6 +506,17 @@ app.all('/api/*splat', async (req, res) => {
       return res.json({ ok: true })
     }
 
+    // Checkbox "Haendler ausverkauft" in der Admin-Eventliste (11.11.2026) --
+    // ersetzt das Setzen von sold_out_label von Hand. Eigener Endpunkt, damit
+    // das generische PATCH /events/:id (schreibt alle Felder) nicht noetig ist.
+    const soldOutMatch = path.match(/^\/events\/([^/]+)\/soldout$/)
+    if (soldOutMatch && method === 'PATCH') {
+      if (!await isAdmin(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' })
+      const label = req.body?.soldOut ? 'HÄNDLER SOLD OUT – Besucher willkommen!' : null
+      await dbExecute('UPDATE events SET sold_out_label = ? WHERE id = ?', [label, soldOutMatch[1]])
+      return res.json({ ok: true, soldOutLabel: label })
+    }
+
     const eventMatch = path.match(/^\/events\/([^/]+)$/)
     if (eventMatch) {
       const id = eventMatch[1]

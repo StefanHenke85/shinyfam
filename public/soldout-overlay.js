@@ -11,6 +11,10 @@
   // sind (Dennis, 28.10.2026 -- erster Versuch traf nur die Karten-Liste,
   // nicht Popup/Detailsektion).
 
+  // Im Admin-Bereich KEIN Overlay: dort verdeckte es Listen und Formulare
+  // (Stefan, 11.11.2026). Steuerung dort per Checkbox "Haendler ausverkauft".
+  if (location.pathname.indexOf("/admin") === 0) return;
+
   var soldOutTitles = [];
   var fetched = false;
 
