@@ -101,6 +101,9 @@
     var textNodes = [];
     var node;
     while ((node = walker.nextNode())) {
+      // Titel in Buttons/Links (z.B. "Tickets fuer ...") nicht markieren,
+      // sonst landet das Etikett auf der ganzen Hero-Sektion.
+      if (node.parentElement && node.parentElement.closest && node.parentElement.closest("a, button")) continue;
       if (node.nodeValue && node.nodeValue.indexOf(title) !== -1) {
         textNodes.push(node);
       }
@@ -124,7 +127,11 @@
   }
 
   function scan() {
-    if (onTicketPage()) return;
+    if (onTicketPage()) {
+      // nach SPA-Navigation evtl. noch vorhandene Etiketten entfernen
+      document.querySelectorAll("[data-shinyfam-soldout]").forEach(function (b) { b.remove(); });
+      return;
+    }
     soldOutTitles.forEach(function (entry) {
       markTitleOccurrences(entry.title, entry.label);
     });
