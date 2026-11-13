@@ -24,6 +24,7 @@ import Tickets from './pages/Tickets'
 import TicketOrder from './pages/TicketOrder'
 import TicketCheck from './pages/TicketCheck'
 import TicketBedingungen from './pages/TicketBedingungen'
+import TicketScan from './pages/TicketScan'
 
 function NotFound() {
   return (
@@ -106,6 +107,7 @@ export default function App() {
                       <Route path="/tickets/bestellung/:number" element={<TicketOrder />} />
                       <Route path="/tickets/:slug" element={<Tickets />} />
                       <Route path="/t/:code" element={<TicketCheck />} />
+                      <Route path="/einlass" element={<TicketScan />} />
                       <Route path="/ticket-bedingungen" element={<TicketBedingungen />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

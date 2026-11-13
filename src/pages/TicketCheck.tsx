@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, Undo2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Undo2, ScanLine } from 'lucide-react'
 
 interface CheckData {
   found: boolean
@@ -121,12 +121,21 @@ export default function TicketCheck() {
       )}
 
       {data.admin && (
+        <button type="button" onClick={() => nav('/einlass')} className="btn-primary w-full text-lg py-4 mb-3 inline-flex items-center justify-center gap-2"><ScanLine size={20} /> Nächstes Ticket scannen</button>
+      )}
+
+      {data.admin && (
         <form onSubmit={e => { e.preventDefault(); const c = manual.trim().toUpperCase().replace(/.*\/T\//, ''); if (c) { setManual(''); nav(`/t/${c}`) } }} className="flex gap-2">
           <input value={manual} onChange={e => setManual(e.target.value)} placeholder="Nächster Code (oder QR scannen)" className="flex-1 bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm uppercase" />
           <button type="submit" className="btn-primary text-sm">Prüfen</button>
         </form>
       )}
-      {!data.admin && data.found && <p className="text-muted text-xs text-center">Einlass-Team: im Admin anmelden, dann erscheint hier der Check-in.</p>}
+      {!data.admin && data.found && (
+        <p className="text-muted text-xs text-center">
+          Einlass-Team: {token ? 'Die Anmeldung in diesem Browser ist abgelaufen – ' : 'In diesem Browser nicht angemeldet – '}
+          bitte <Link to="/admin" className="underline">im Admin anmelden</Link> und Tickets über <Link to="/einlass" className="underline">shinyfam.de/einlass</Link> scannen.
+        </p>
+      )}
     </div>
   )
 }

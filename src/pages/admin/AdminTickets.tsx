@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, X, Mail, RotateCcw, Copy, ExternalLink, Save, Loader2 } from 'lucide-react'
+import { Check, X, Mail, RotateCcw, Copy, ExternalLink, Save, Loader2, ScanLine } from 'lucide-react'
 
 const euro = (n: number) => `${Number(n || 0).toFixed(2).replace('.', ',')} €`
 const inputCls = 'w-full bg-bg-surface border border-theme rounded-lg px-3 py-2 text-primary text-sm focus:border-accent-purple outline-none'
@@ -84,6 +84,8 @@ export default function AdminTickets({ token }: { token: string }) {
           <a href={shopLink} target="_blank" rel="noopener noreferrer" className="btn-outline text-xs inline-flex items-center gap-1"><ExternalLink size={12} /> Öffnen</a>
         </div>
       )}
+
+      <a href="/einlass" className="btn-primary w-full sm:w-auto inline-flex items-center justify-center gap-2 mb-4 text-base py-3"><ScanLine size={18} /> Einlass-Scanner öffnen</a>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         {([['orders', 'Bestellungen'], ['deposit', 'Händler & Unratütox'], ['config', 'Verkauf einrichten'], ['bank', 'Bank & PayPal']] as const).map(([k, l]) => (
