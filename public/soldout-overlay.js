@@ -14,6 +14,9 @@
   // Im Admin-Bereich KEIN Overlay: dort verdeckte es Listen und Formulare
   // (Stefan, 11.11.2026). Steuerung dort per Checkbox "Haendler ausverkauft".
   if (location.pathname.indexOf("/admin") === 0) return;
+  // Ticket-Seiten zeigen "Haendler ausverkauft" selbst an; dort kein Badge,
+  // damit nichts vom Besucher-Ticketverkauf verdeckt wird (Stefan, 13.11.2026).
+  function onTicketPage() { return /^\/(tickets|t|einlass|ticket-bedingungen)(\/|$)/.test(location.pathname); }
 
   var soldOutTitles = [];
   var fetched = false;
@@ -32,44 +35,34 @@
     }
   }
 
+  // Dezentes Eck-Etikett statt Vollflaechen-Overlay: verdeckt keine Buttons,
+  // dunkelt nichts ab und laesst alle Klicks durch (Besuchertickets bleiben
+  // buchbar). Stefan, 13.11.2026.
   function makeBadge(label) {
     var badge = document.createElement("div");
     badge.className = "shinyfam-soldout-badge";
     badge.setAttribute("data-shinyfam-soldout", "1");
+    badge.textContent = label;
     badge.style.cssText = [
       "position:absolute",
-      "inset:0",
-      "z-index:9999",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
+      "top:10px",
+      "left:10px",
+      "z-index:5",
       "pointer-events:none",
-      "background:rgba(10,4,4,0.55)",
-      "border-radius:inherit",
-    ].join(";");
-
-    var ribbon = document.createElement("div");
-    ribbon.textContent = label;
-    ribbon.style.cssText = [
-      "background:rgba(20,8,8,0.92)",
+      "background:#dc2626",
       "color:#fff",
-      "font-weight:800",
-      "font-size:clamp(0.7rem, 3.2vw, 1.3rem)",
-      "letter-spacing:0.04em",
-      "padding:0.5em 1em",
-      "border:3px solid #ef4444",
-      "border-radius:0.5em",
-      "transform:rotate(-8deg)",
-      "box-shadow:0 4px 18px rgba(0,0,0,0.6)",
-      "text-transform:uppercase",
-      "font-family:inherit",
+      "font-weight:700",
+      "font-size:11px",
+      "line-height:1.3",
+      "letter-spacing:0.02em",
+      "padding:4px 9px",
+      "border-radius:999px",
+      "box-shadow:0 2px 8px rgba(0,0,0,0.25)",
+      "max-width:70%",
       "white-space:normal",
       "text-align:center",
-      "max-width:85%",
-      "line-height:1.25",
+      "font-family:inherit",
     ].join(";");
-
-    badge.appendChild(ribbon);
     return badge;
   }
 
@@ -119,7 +112,6 @@
       var computedPosition = window.getComputedStyle(container).position;
       if (computedPosition === "static") container.style.position = "relative";
       container.appendChild(makeBadge(label));
-      container.style.filter = "grayscale(0.35)";
 
       // Fuer die Button-Deaktivierung breiter suchen als nur im Badge-
       // Container: das naechstgelegene <article> (Karten-Liste) oder sonst
@@ -132,6 +124,7 @@
   }
 
   function scan() {
+    if (onTicketPage()) return;
     soldOutTitles.forEach(function (entry) {
       markTitleOccurrences(entry.title, entry.label);
     });
