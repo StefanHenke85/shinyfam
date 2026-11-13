@@ -124,6 +124,15 @@ async function findEventBySlugOrId(db, key) {
   return loadEvent(db, id)
 }
 
+// PayPal.me-Name aus allem, was im Admin eingetragen wird: "shinyfam", "@shinyfam",
+// "paypal.me/shinyfam", "https://www.paypal.com/paypalme/ShinyFam/" usw.
+function paypalName(v) {
+  let s = String(v || '').trim()
+  const m = s.match(/paypal(?:\.me|\.com\/paypalme)\/+([^/?#\s]+)/i)
+  if (m) s = m[1]
+  return s.replace(/^@/, '').replace(/[/?#].*$/, '').trim()
+}
+
 async function getSettings(db) {
   const r = await db("SELECT key, value FROM settings WHERE key LIKE 'ticket_%'")
   const s = {}
@@ -135,7 +144,7 @@ async function getSettings(db) {
     bankName: s.ticket_bank_name || '',
     // Testmodus: Standard AN, bis im Admin bewusst ausgeschaltet
     sandbox: s.ticket_sandbox !== 'false',
-    paypalMe: (s.ticket_paypal_me || '').replace(/^https?:\/\/(www\.)?paypal\.me\//i, '').replace(/\/.*$/, ''),
+    paypalMe: paypalName(s.ticket_paypal_me),
   }
 }
 
