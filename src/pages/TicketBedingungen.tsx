@@ -48,8 +48,10 @@ export default function TicketBedingungen() {
           <section className={sec}>
             <h2 className={h}>6. Haftung</h2>
             <p className={p}>
-              Für mitgebrachte Ware und Wertgegenstände haften wir nur bei Vorsatz oder grober Fahrlässigkeit. Händler sind für ihren Stand
-              und ihre Ware selbst verantwortlich.
+              Der Besuch der Veranstaltung sowie das Mitbringen von Ware und Wertgegenständen erfolgen auf eigenes Risiko. Für Verlust,
+              Diebstahl oder Beschädigung mitgebrachter Ware und Wertgegenstände übernehmen wir keine Haftung. Händler sind für ihren Stand
+              und ihre Ware selbst verantwortlich. Unberührt bleibt allein die gesetzlich zwingende Haftung (Vorsatz, grobe Fahrlässigkeit
+              sowie Verletzung von Leben, Körper oder Gesundheit).
             </p>
           </section>
         </div>
